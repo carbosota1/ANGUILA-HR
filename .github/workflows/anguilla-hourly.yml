@@ -2,7 +2,7 @@ name: Anguilla Hourly Engine
 
 on:
   schedule:
-    # 7AM–11PM RD (UTC-4 → 11–03 UTC)
+    # 7AM–11PM RD (UTC-4 -> 11–03 UTC)
     - cron: "*/10 11-23 * * *"
     - cron: "*/10 0-3 * * *"
   workflow_dispatch:
@@ -31,12 +31,10 @@ jobs:
       NOTIFY_DEDUPE: ${{ github.event.inputs.notify_dedupe || '1' }}
       FORCE_NOTIFY: ${{ github.event.inputs.force_notify || '0' }}
 
-      # 🔥 Bootstrap automático
-      BOOTSTRAP_BACKFILL: "1"
+      # YA TIENES HISTORIAL -> bootstrap apagado
+      BOOTSTRAP_BACKFILL: "0"
       BOOTSTRAP_DAYS: "365"
       MIN_OK_DRAWS: "30"
-
-      # opcional: avisar mientras calienta
       SEND_WARMUP_INFO: "0"
 
     steps:
