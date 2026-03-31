@@ -30,6 +30,17 @@ def slot_to_hour24(slot: str) -> int:
     return SLOT_TO_HOUR24[slot.strip().upper()]
 
 
+def to_naive_timestamp(ts) -> pd.Timestamp:
+    """
+    Convierte cualquier timestamp a naive para evitar choque
+    entre tz-aware y tz-naive.
+    """
+    ts = pd.Timestamp(ts)
+    if ts.tzinfo is not None:
+        return ts.tz_localize(None)
+    return ts
+
+
 def load_history_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, dtype=str).fillna("")
     df = df[df["status"] == "OK"].copy()
@@ -44,12 +55,16 @@ def load_history_csv(path: str) -> pd.DataFrame:
     )
 
     df = df.dropna(subset=["datetime"]).copy()
+    df["datetime"] = df["datetime"].map(to_naive_timestamp)
+
     df = df.sort_values("datetime").reset_index(drop=True)
     df["nums"] = df.apply(lambda r: [r["primero"], r["segundo"], r["tercero"]], axis=1)
     return df
 
 
 def get_recent_windows(train_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict[str, pd.DataFrame]:
+    target_dt = to_naive_timestamp(target_dt)
+
     return {
         "w15": train_df[train_df["datetime"] >= (target_dt - pd.Timedelta(days=15))].copy(),
         "w30": train_df[train_df["datetime"] >= (target_dt - pd.Timedelta(days=30))].copy(),
@@ -292,6 +307,10 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float) -> Dict[s
 
 
 def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict:
+    target_dt = to_naive_timestamp(target_dt)
+    history_df = history_df.copy()
+    history_df["datetime"] = history_df["datetime"].map(to_naive_timestamp)
+
     train_df = history_df[history_df["datetime"] < target_dt].copy()
     if len(train_df) < 30:
         raise ValueError("Historial insuficiente para modelar. Se necesitan al menos 30 sorteos OK.")
