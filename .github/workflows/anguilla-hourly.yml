@@ -2,10 +2,9 @@ name: Anguilla Hourly Engine
 
 on:
   schedule:
-    # America/Santo_Domingo = UTC-4
-    # 7:00 AM - 10:59 PM RD -> 11:00 - 02:59 UTC
+    # 7AM–11PM RD (UTC-4 → 11–03 UTC)
     - cron: "*/10 11-23 * * *"
-    - cron: "*/10 0-2 * * *"
+    - cron: "*/10 0-3 * * *"
   workflow_dispatch:
     inputs:
       force_notify:
@@ -29,12 +28,16 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       TELEGRAM_NOTIFY: "1"
-
-      # Puedes cambiarlo desde workflow_dispatch
       NOTIFY_DEDUPE: ${{ github.event.inputs.notify_dedupe || '1' }}
-
-      # Puedes forzarlo manualmente desde workflow_dispatch
       FORCE_NOTIFY: ${{ github.event.inputs.force_notify || '0' }}
+
+      # 🔥 Bootstrap automático
+      BOOTSTRAP_BACKFILL: "1"
+      BOOTSTRAP_DAYS: "365"
+      MIN_OK_DRAWS: "30"
+
+      # opcional: avisar mientras calienta
+      SEND_WARMUP_INFO: "0"
 
     steps:
       - name: Checkout
@@ -48,20 +51,32 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests pandas openpyxl beautifulsoup4
+
+      - name: Debug repo structure
+        run: |
+          echo "==== FILE TREE ===="
+          find . -maxdepth 3 -type f | sort
 
       - name: Ensure folders
         run: |
-          mkdir -p data outputs src .github/workflows
+          mkdir -p data outputs
 
       - name: Run Anguilla engine
         run: |
-          python src/runner.py
+          if [ -f src/runner.py ]; then
+            python src/runner.py
+          elif [ -f runner.py ]; then
+            python runner.py
+          else
+            echo "❌ No se encontró runner.py"
+            exit 1
+          fi
 
-      - name: Commit updated data/outputs/state
+      - name: Commit updated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/ outputs/
-          git diff --cached --quiet || git commit -m "Update Anguilla picks/state [skip ci]"
+          git diff --cached --quiet || git commit -m "Update Anguilla engine data/logs [skip ci]"
           git push

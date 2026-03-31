@@ -9,16 +9,17 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from model_anguilla import load_history_csv, run_model_for_target, HOUR24_TO_SLOT
+from model_anguilla import load_history_csv, run_model_for_target
 from telegram import send_telegram
 from pick_logger import upsert_pick_log
 from grader import grade_pending_picks
 from performance_summary import summarize_performance
 
 try:
-    from scrape_anguilla_enloteria import update_history_with_day
+    from scrape_anguilla_enloteria import update_history_with_day, backfill_days
 except Exception:
     update_history_with_day = None
+    backfill_days = None
 
 
 TZ_RD = ZoneInfo("America/Santo_Domingo")
@@ -35,7 +36,7 @@ REPORT_TXT = os.path.join(OUT_DIR, "daily_report.txt")
 PICK_LOG_CSV = os.path.join(DATA_DIR, "pick_log.csv")
 PERFORMANCE_LOG_CSV = os.path.join(DATA_DIR, "performance_log.csv")
 
-SCHEDULE_HOURS = list(range(8, 23))
+SCHEDULE_HOURS = list(range(8, 23))  # 8AM..10PM
 
 
 def ensure_dir(path: str) -> None:
@@ -44,6 +45,17 @@ def ensure_dir(path: str) -> None:
 
 def rd_now() -> datetime:
     return datetime.now(TZ_RD)
+
+
+def env_bool(name: str, default: str = "0") -> bool:
+    return str(os.getenv(name, default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(str(os.getenv(name, str(default))).strip())
+    except Exception:
+        return default
 
 
 def load_state() -> dict:
@@ -99,6 +111,38 @@ def maybe_update_history(now_rd: datetime) -> None:
         print(f"SCRAPER ERROR: {e}")
 
 
+def maybe_bootstrap_history() -> None:
+    """
+    Si el historial está corto, intenta hacer backfill automático una sola vez
+    o cuando BOOTSTRAP_BACKFILL=1.
+    """
+    if backfill_days is None:
+        print("BOOTSTRAP: backfill_days no disponible.")
+        return
+
+    bootstrap_enabled = env_bool("BOOTSTRAP_BACKFILL", "1")
+    bootstrap_days = env_int("BOOTSTRAP_DAYS", 365)
+
+    if not bootstrap_enabled:
+        print("BOOTSTRAP: desactivado por env.")
+        return
+
+    try:
+        print(f"BOOTSTRAP: iniciando backfill {bootstrap_days} días...")
+        backfill_days(bootstrap_days)
+        print("BOOTSTRAP: backfill completado.")
+    except Exception as e:
+        print(f"BOOTSTRAP ERROR: {e}")
+
+
+def count_ok_draws(history_df: pd.DataFrame) -> int:
+    return int(len(history_df))
+
+
+def build_signal_key(payload: dict) -> str:
+    return f'{payload["target_fecha"]}|Anguilla|{payload["target_hora"]}'
+
+
 def fingerprint_payload(payload: dict) -> str:
     raw = json.dumps(
         {
@@ -115,12 +159,30 @@ def fingerprint_payload(payload: dict) -> str:
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def build_signal_key(payload: dict) -> str:
-    return f'{payload["target_fecha"]}|Anguilla|{payload["target_hora"]}'
+def should_send_notification(state: dict, signal_key: str, fp: str) -> tuple[bool, str]:
+    notify_enabled = env_bool("TELEGRAM_NOTIFY", "1")
+    dedupe_enabled = env_bool("NOTIFY_DEDUPE", "1")
+    force_notify = env_bool("FORCE_NOTIFY", "0")
 
+    if not notify_enabled:
+        return False, "TELEGRAM_NOTIFY=0"
 
-def env_bool(name: str, default: str = "0") -> bool:
-    return str(os.getenv(name, default)).strip().lower() in {"1", "true", "yes", "on"}
+    if force_notify:
+        return True, "FORCE_NOTIFY=1"
+
+    if not dedupe_enabled:
+        return True, "NOTIFY_DEDUPE=0"
+
+    last_signal_key = state.get("last_signal_key", "")
+    last_fingerprint = state.get("last_fingerprint", "")
+
+    if last_signal_key == signal_key:
+        return False, "Ya se notificó este target y NOTIFY_DEDUPE=1"
+
+    if last_fingerprint == fp and state.get("last_target_hora") == signal_key:
+        return False, "Fingerprint duplicado y NOTIFY_DEDUPE=1"
+
+    return True, "OK"
 
 
 def build_telegram_message(payload: dict, signal_key: str) -> str:
@@ -159,30 +221,18 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
     return msg
 
 
-def should_send_notification(state: dict, signal_key: str, fp: str) -> tuple[bool, str]:
-    notify_enabled = env_bool("TELEGRAM_NOTIFY", "1")
-    dedupe_enabled = env_bool("NOTIFY_DEDUPE", "1")
-    force_notify = env_bool("FORCE_NOTIFY", "0")
+def maybe_send_warmup_message(ok_count: int) -> None:
+    if not env_bool("SEND_WARMUP_INFO", "0"):
+        return
 
-    if not notify_enabled:
-        return False, "TELEGRAM_NOTIFY=0"
-
-    if force_notify:
-        return True, "FORCE_NOTIFY=1"
-
-    if not dedupe_enabled:
-        return True, "NOTIFY_DEDUPE=0"
-
-    last_signal_key = state.get("last_signal_key", "")
-    last_fingerprint = state.get("last_fingerprint", "")
-
-    if last_signal_key == signal_key:
-        return False, "Ya se notificó este target y NOTIFY_DEDUPE=1"
-
-    if last_fingerprint == fp and state.get("last_target_hora") == signal_key:
-        return False, "Fingerprint duplicado y NOTIFY_DEDUPE=1"
-
-    return True, "OK"
+    text = (
+        "🧠 <b>ANGUILLA CHI/MI ENGINE</b>\n\n"
+        "⏳ <b>WARMING UP</b>\n"
+        f"Historial OK actual: <b>{ok_count}</b>\n"
+        "Se necesitan al menos <b>30 sorteos OK</b> para modelar.\n"
+        "El workflow no falló; seguirá acumulando data automáticamente."
+    )
+    send_telegram(text)
 
 
 def main() -> None:
@@ -190,14 +240,48 @@ def main() -> None:
     ensure_dir(OUT_DIR)
 
     now_rd = rd_now()
+    state = load_state()
+
     maybe_update_history(now_rd)
 
     if not os.path.exists(HISTORY_CSV):
-        raise FileNotFoundError(f"No existe historial: {HISTORY_CSV}")
+        save_text(REPORT_TXT, f"No existe historial: {HISTORY_CSV}\n")
+        print(f"No existe historial: {HISTORY_CSV}")
+        save_state(state)
+        return
 
     history_df = load_history_csv(HISTORY_CSV)
-    if history_df.empty:
-        raise ValueError("Historial vacío después de filtrar status=OK")
+    ok_count = count_ok_draws(history_df)
+
+    min_ok_draws = env_int("MIN_OK_DRAWS", 30)
+
+    if ok_count < min_ok_draws:
+        print(f"HISTORIAL CORTO: {ok_count} OK < {min_ok_draws}. Intentando bootstrap...")
+        maybe_bootstrap_history()
+
+        if os.path.exists(HISTORY_CSV):
+            history_df = load_history_csv(HISTORY_CSV)
+            ok_count = count_ok_draws(history_df)
+
+    if ok_count < min_ok_draws:
+        report_text = (
+            "ANGUILLA CHI/MI ENGINE\n"
+            f"Generated RD: {now_rd.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"Estado: WARMING UP\n"
+            f"OK draws actuales: {ok_count}\n"
+            f"Mínimo requerido: {min_ok_draws}\n"
+            "Acción: esperando más historial para modelar.\n"
+        )
+        save_text(REPORT_TXT, report_text)
+
+        state["last_run_at_rd"] = now_rd.strftime("%Y-%m-%d %H:%M:%S")
+        state["last_status"] = "WARMING_UP"
+        state["ok_draws"] = ok_count
+        save_state(state)
+
+        maybe_send_warmup_message(ok_count)
+        print(report_text)
+        return
 
     target_dt = get_next_target_dt(now_rd)
     payload = run_model_for_target(history_df, pd.Timestamp(target_dt))
@@ -212,6 +296,9 @@ def main() -> None:
         "notify_enabled": env_bool("TELEGRAM_NOTIFY", "1"),
         "notify_dedupe": env_bool("NOTIFY_DEDUPE", "1"),
         "force_notify": env_bool("FORCE_NOTIFY", "0"),
+        "bootstrap_backfill": env_bool("BOOTSTRAP_BACKFILL", "1"),
+        "bootstrap_days": env_int("BOOTSTRAP_DAYS", 365),
+        "min_ok_draws": min_ok_draws,
     }
 
     save_json(PICKS_JSON, payload)
@@ -230,9 +317,7 @@ def main() -> None:
     )
     save_text(REPORT_TXT, report_text)
 
-    state = load_state()
     send_ok, reason = should_send_notification(state, signal_key, fp)
-
     notified_flag = False
 
     if send_ok:
@@ -257,7 +342,6 @@ def main() -> None:
         pick_log_path=PICK_LOG_CSV,
         performance_log_path=PERFORMANCE_LOG_CSV,
     )
-
     if not graded_df.empty:
         print(f"GRADED: {len(graded_df)} pick(s) evaluados")
 
@@ -268,6 +352,8 @@ def main() -> None:
     state["last_target_dt"] = str(target_dt)
     state["last_edge_label"] = payload["edge_label"]
     state["last_top3"] = payload["top3"]
+    state["last_status"] = "OK"
+    state["ok_draws"] = ok_count
     save_state(state)
 
     print(report_text)
