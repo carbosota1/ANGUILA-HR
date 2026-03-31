@@ -1,10 +1,10 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-03-31 14:22:59
-Target: 2026-03-31 3PM
-Signal key: 2026-03-31|Anguilla|3PM
+Generated RD: 2026-03-31 15:09:30
+Target: 2026-03-31 4PM
+Signal key: 2026-03-31|Anguilla|4PM
 Edge: EDGE FUERTE
-Top3: 38, 53, 23
-Top12: 38, 53, 23, 69, 04, 85, 55, 89, 74, 77, 73, 35
-Pale Top3: 38-85 | 38-53 | 38-23
-best_score=0.785785 | lift=2.094749 | mi=0.000378 | chi2=5.155152
-rows_used=5306 | support=1348
+Top3: 48, 38, 41
+Top12: 48, 38, 41, 62, 60, 82, 09, 39, 02, 85, 91, 58
+Pale Top3: 48-41 | 38-41 | 48-38
+best_score=0.691574 | lift=2.337474 | mi=0.000565 | chi2=8.107215
+rows_used=5307 | support=1335
