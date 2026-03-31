@@ -11,6 +11,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from model_anguilla import load_history_csv, run_model_for_target, HOUR24_TO_SLOT
 from telegram import send_telegram
+from pick_logger import upsert_pick_log
+from grader import grade_pending_picks
+from performance_summary import summarize_performance
 
 try:
     from scrape_anguilla_enloteria import update_history_with_day
@@ -29,7 +32,10 @@ STATE_PATH = os.path.join(DATA_DIR, "state.json")
 PICKS_JSON = os.path.join(OUT_DIR, "picks.json")
 REPORT_TXT = os.path.join(OUT_DIR, "daily_report.txt")
 
-SCHEDULE_HOURS = list(range(8, 23))  # 8AM .. 10PM
+PICK_LOG_CSV = os.path.join(DATA_DIR, "pick_log.csv")
+PERFORMANCE_LOG_CSV = os.path.join(DATA_DIR, "performance_log.csv")
+
+SCHEDULE_HOURS = list(range(8, 23))
 
 
 def ensure_dir(path: str) -> None:
@@ -69,14 +75,6 @@ def save_text(path: str, text: str) -> None:
 
 
 def get_next_target_dt(now_rd: datetime) -> datetime:
-    """
-    Devuelve el próximo sorteo horario.
-    Ej:
-      7:12 -> hoy 8:00
-      8:05 -> hoy 9:00
-      21:58 -> hoy 22:00
-      22:10 -> mañana 8:00
-    """
     today = now_rd.date()
 
     for h in SCHEDULE_HOURS:
@@ -95,7 +93,6 @@ def maybe_update_history(now_rd: datetime) -> None:
 
     try:
         update_history_with_day(now_rd.date())
-        # cerca del cambio de día/primeras horas conviene asegurar ayer también
         update_history_with_day((now_rd - timedelta(days=1)).date())
         print("SCRAPER: historial actualizado.")
     except Exception as e:
@@ -236,10 +233,13 @@ def main() -> None:
     state = load_state()
     send_ok, reason = should_send_notification(state, signal_key, fp)
 
+    notified_flag = False
+
     if send_ok:
         text = build_telegram_message(payload, signal_key)
         sent = send_telegram(text)
         if sent:
+            notified_flag = True
             state["last_signal_key"] = signal_key
             state["last_fingerprint"] = fp
             state["last_target_hora"] = signal_key
@@ -249,6 +249,20 @@ def main() -> None:
             print("NOTIFY: fallo el envío")
     else:
         print(f"NOTIFY SKIPPED: {reason}")
+
+    upsert_pick_log(PICK_LOG_CSV, payload, notified=notified_flag)
+
+    graded_df = grade_pending_picks(
+        history_path=HISTORY_CSV,
+        pick_log_path=PICK_LOG_CSV,
+        performance_log_path=PERFORMANCE_LOG_CSV,
+    )
+
+    if not graded_df.empty:
+        print(f"GRADED: {len(graded_df)} pick(s) evaluados")
+
+    perf_summary = summarize_performance(PERFORMANCE_LOG_CSV)
+    print("PERFORMANCE SUMMARY:", perf_summary)
 
     state["last_run_at_rd"] = now_rd.strftime("%Y-%m-%d %H:%M:%S")
     state["last_target_dt"] = str(target_dt)

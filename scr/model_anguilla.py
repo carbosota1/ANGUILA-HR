@@ -45,7 +45,6 @@ def load_history_csv(path: str) -> pd.DataFrame:
 
     df = df.dropna(subset=["datetime"]).copy()
     df = df.sort_values("datetime").reset_index(drop=True)
-
     df["nums"] = df.apply(lambda r: [r["primero"], r["segundo"], r["tercero"]], axis=1)
     return df
 
@@ -64,20 +63,12 @@ def draw_has_num(draw_nums: List[str], num: str) -> int:
 
 
 def contingency_from_lag(df: pd.DataFrame, lag: int, observed_num: str, candidate_num: str) -> Tuple[int, int, int, int]:
-    """
-    a = X=1,Y=1
-    b = X=1,Y=0
-    c = X=0,Y=1
-    d = X=0,Y=0
-    X = observed_num apareció en t-lag
-    Y = candidate_num apareció en t
-    """
     if len(df) <= lag:
         return 0, 0, 0, 0
 
     a = b = c = d = 0
-
     rows = df[["nums"]].reset_index(drop=True)
+
     for i in range(lag, len(rows)):
         x = draw_has_num(rows.iloc[i - lag]["nums"], observed_num)
         y = draw_has_num(rows.iloc[i]["nums"], candidate_num)
@@ -112,11 +103,11 @@ def chi2_from_contingency(a: int, b: int, c: int, d: int) -> float:
     e_c = row2 * col1 / n
     e_d = row2 * col2 / n
 
-    vals = [(a, e_a), (b, e_b), (c, e_c), (d, e_d)]
     chi2 = 0.0
-    for obs, exp in vals:
+    for obs, exp in [(a, e_a), (b, e_b), (c, e_c), (d, e_d)]:
         if exp > 0:
             chi2 += ((obs - exp) ** 2) / exp
+
     return float(chi2)
 
 
@@ -142,9 +133,11 @@ def mutual_info_from_contingency(a: int, b: int, c: int, d: int) -> float:
         (p01, px0, py1),
         (p00, px0, py0),
     ]
+
     for pxy, px, py in terms:
         if pxy > 0 and px > 0 and py > 0:
             mi += pxy * math.log(pxy / (px * py))
+
     return float(mi)
 
 
@@ -173,11 +166,7 @@ def build_context(train_df: pd.DataFrame) -> Dict[str, List[str]]:
     return ctx
 
 
-def score_candidate(
-    candidate_num: str,
-    windows: Dict[str, pd.DataFrame],
-    context: Dict[str, List[str]],
-) -> Dict:
+def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], context: Dict[str, List[str]]) -> Dict:
     w15 = windows["w15"]
     w30 = windows["w30"]
     w90 = windows["w90"]
@@ -289,34 +278,17 @@ def build_pair_scores(top_numbers: List[Dict], windows: Dict[str, pd.DataFrame])
             "lift90": float(lift90),
         })
 
-    pair_rows = sorted(pair_rows, key=lambda x: x["score"], reverse=True)
-    return pair_rows
+    return sorted(pair_rows, key=lambda x: x["score"], reverse=True)
 
 
 def classify_edge(best_score: float, best_lift: float, best_mi: float) -> Dict[str, str]:
     if best_score >= 0.42 or (best_lift >= 2.2 and best_mi >= 0.02):
-        return {
-            "edge_label": "EDGE FUERTE",
-            "fire": "🔥🔥🔥🔥🔥🔥",
-            "alert": "HIGH",
-        }
+        return {"edge_label": "EDGE FUERTE", "fire": "🔥🔥🔥🔥🔥🔥", "alert": "HIGH"}
     if best_score >= 0.26 or (best_lift >= 1.7 and best_mi >= 0.01):
-        return {
-            "edge_label": "EDGE REAL",
-            "fire": "🔥🔥🔥🔥",
-            "alert": "MEDIUM",
-        }
+        return {"edge_label": "EDGE REAL", "fire": "🔥🔥🔥🔥", "alert": "MEDIUM"}
     if best_score >= 0.16:
-        return {
-            "edge_label": "EDGE MODERADO",
-            "fire": "🔥🔥",
-            "alert": "LOW",
-        }
-    return {
-        "edge_label": "SEÑAL DÉBIL",
-        "fire": "⚠️",
-        "alert": "INFO",
-    }
+        return {"edge_label": "EDGE MODERADO", "fire": "🔥🔥", "alert": "LOW"}
+    return {"edge_label": "SEÑAL DÉBIL", "fire": "⚠️", "alert": "INFO"}
 
 
 def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict:
@@ -330,8 +302,7 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
     candidate_rows = []
     for i in range(100):
         num = f"{i:02d}"
-        row = score_candidate(num, windows, context)
-        candidate_rows.append(row)
+        candidate_rows.append(score_candidate(num, windows, context))
 
     candidate_rows = sorted(candidate_rows, key=lambda x: x["score"], reverse=True)
 
@@ -342,7 +313,6 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
 
     best = candidate_rows[0]
     edge = classify_edge(best["score"], best["best_lift"], best["best_mi"])
-
     last_draw = train_df.iloc[-1]
     last3 = train_df.tail(3).copy()
 
