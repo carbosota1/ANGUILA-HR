@@ -1,5 +1,4 @@
 import math
-from itertools import combinations
 from typing import Dict, List, Tuple
 
 import pandas as pd
@@ -31,10 +30,6 @@ def slot_to_hour24(slot: str) -> int:
 
 
 def to_naive_timestamp(ts) -> pd.Timestamp:
-    """
-    Convierte cualquier timestamp a naive para evitar choque
-    entre tz-aware y tz-naive.
-    """
     ts = pd.Timestamp(ts)
     if ts.tzinfo is not None:
         return ts.tz_localize(None)
@@ -56,7 +51,6 @@ def load_history_csv(path: str) -> pd.DataFrame:
 
     df = df.dropna(subset=["datetime"]).copy()
     df["datetime"] = df["datetime"].map(to_naive_timestamp)
-
     df = df.sort_values("datetime").reset_index(drop=True)
     df["nums"] = df.apply(lambda r: [r["primero"], r["segundo"], r["tercero"]], axis=1)
     return df
@@ -64,7 +58,6 @@ def load_history_csv(path: str) -> pd.DataFrame:
 
 def get_recent_windows(train_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict[str, pd.DataFrame]:
     target_dt = to_naive_timestamp(target_dt)
-
     return {
         "w15": train_df[train_df["datetime"] >= (target_dt - pd.Timedelta(days=15))].copy(),
         "w30": train_df[train_df["datetime"] >= (target_dt - pd.Timedelta(days=30))].copy(),
@@ -77,7 +70,12 @@ def draw_has_num(draw_nums: List[str], num: str) -> int:
     return 1 if num in draw_nums else 0
 
 
-def contingency_from_lag(df: pd.DataFrame, lag: int, observed_num: str, candidate_num: str) -> Tuple[int, int, int, int]:
+def contingency_from_lag(
+    df: pd.DataFrame,
+    lag: int,
+    observed_num: str,
+    candidate_num: str
+) -> Tuple[int, int, int, int]:
     if len(df) <= lag:
         return 0, 0, 0, 0
 
@@ -163,13 +161,6 @@ def draw_probability(df: pd.DataFrame, num: str) -> float:
     return float(hits) / float(len(df))
 
 
-def pair_probability(df: pd.DataFrame, a: str, b: str) -> float:
-    if df.empty:
-        return 0.0
-    hits = df["nums"].apply(lambda x: 1 if (a in x and b in x) else 0).sum()
-    return float(hits) / float(len(df))
-
-
 def build_context(train_df: pd.DataFrame) -> Dict[str, List[str]]:
     ctx = {"lag1": [], "lag2": [], "lag3": []}
     if len(train_df) >= 1:
@@ -197,6 +188,7 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     best_mi = 0.0
     best_chi2 = 0.0
     total_support = 0
+    active_edges = 0
 
     lag_weights = {"lag1": 1.00, "lag2": 0.70, "lag3": 0.45}
     lag_to_int = {"lag1": 1, "lag2": 2, "lag3": 3}
@@ -206,7 +198,7 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
         for obs_num in observed_nums:
             a, b, c, d = contingency_from_lag(w365, lag, obs_num, candidate_num)
             support = a + b
-            if support < 3:
+            if support < 5:
                 continue
 
             total_support += support
@@ -221,24 +213,65 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
             best_mi = max(best_mi, mi)
             best_chi2 = max(best_chi2, chi2)
 
+            # filtro local: no sumar ruido débil
+            if lift < 1.15 and chi2 < 1.25 and mi < 0.00008:
+                continue
+
+            active_edges += 1
+
             lag_signal = (
-                0.40 * min(max(lift - 1.0, 0.0), 5.0)
-                + 0.35 * min(mi * 25.0, 3.0)
-                + 0.25 * min(math.log1p(chi2), 3.0)
+                0.45 * min(max(lift - 1.0, 0.0), 4.0)
+                + 0.30 * min(math.log1p(chi2), 2.6)
+                + 0.25 * min(mi * 1800.0, 1.6)
             )
             cond_signal += lag_weights[lag_name] * lag_signal
 
+    # frecuencia reciente y estabilidad
     recency_boost = max(p15 - p90, 0.0)
-    stability_boost = max(p30 - p365, 0.0)
+    medium_boost = max(p30 - p365, 0.0)
+
+    # penalizaciones: clave para bajar falsos fuertes
+    mi_penalty = 0.0
+    if best_mi < 0.00020:
+        mi_penalty += 0.085
+    elif best_mi < 0.00035:
+        mi_penalty += 0.045
+
+    chi_penalty = 0.0
+    if best_chi2 < 4.0:
+        chi_penalty += 0.050
+    elif best_chi2 < 5.5:
+        chi_penalty += 0.020
+
+    lift_penalty = 0.0
+    if best_lift < 1.75:
+        lift_penalty += 0.040
+    elif best_lift < 1.95:
+        lift_penalty += 0.015
+
+    support_penalty = 0.0
+    if total_support < 800:
+        support_penalty += 0.020
+
+    edge_count_penalty = 0.0
+    if active_edges <= 1:
+        edge_count_penalty += 0.025
 
     final_score = (
-        0.35 * p90
-        + 0.15 * p30
-        + 0.10 * p15
-        + 0.25 * cond_signal
+        0.28 * p90
+        + 0.14 * p30
+        + 0.08 * p15
+        + 0.30 * cond_signal
         + 0.10 * recency_boost
-        + 0.05 * stability_boost
+        + 0.05 * medium_boost
+        - mi_penalty
+        - chi_penalty
+        - lift_penalty
+        - support_penalty
+        - edge_count_penalty
     )
+
+    final_score = max(final_score, 0.0)
 
     return {
         "num": candidate_num,
@@ -252,58 +285,59 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
         "best_mi": float(best_mi),
         "best_chi2": float(best_chi2),
         "support": int(total_support),
+        "active_edges": int(active_edges),
     }
 
 
-def build_pair_scores(top_numbers: List[Dict], windows: Dict[str, pd.DataFrame]) -> List[Dict]:
-    w30 = windows["w30"]
-    w90 = windows["w90"]
-    w365 = windows["w365"]
-
-    num_map = {x["num"]: x for x in top_numbers}
-    nums = [x["num"] for x in top_numbers[:8]]
-
-    pair_rows = []
-    for a, b in combinations(nums, 2):
-        pa90 = draw_probability(w90, a)
-        pb90 = draw_probability(w90, b)
-        pair90 = pair_probability(w90, a, b)
-        pair30 = pair_probability(w30, a, b)
-        pair365 = pair_probability(w365, a, b)
-
-        indep = max(pa90 * pb90, 1e-9)
-        lift90 = pair90 / indep if indep > 0 else 0.0
-
-        score = (
-            0.42 * num_map[a]["score"]
-            + 0.42 * num_map[b]["score"]
-            + 0.10 * pair90
-            + 0.04 * pair30
-            + 0.02 * max(lift90 - 1.0, 0.0)
-        )
-
-        pair_rows.append({
-            "pair": f"{a}-{b}",
-            "a": a,
-            "b": b,
-            "score": float(score),
-            "pair30": float(pair30),
-            "pair90": float(pair90),
-            "pair365": float(pair365),
-            "lift90": float(lift90),
-        })
-
-    return sorted(pair_rows, key=lambda x: x["score"], reverse=True)
+def build_pair_scores_disabled() -> List[Dict]:
+    return []
 
 
-def classify_edge(best_score: float, best_lift: float, best_mi: float) -> Dict[str, str]:
-    if best_score >= 0.42 or (best_lift >= 2.2 and best_mi >= 0.02):
-        return {"edge_label": "EDGE FUERTE", "fire": "🔥🔥🔥🔥🔥🔥", "alert": "HIGH"}
-    if best_score >= 0.26 or (best_lift >= 1.7 and best_mi >= 0.01):
-        return {"edge_label": "EDGE REAL", "fire": "🔥🔥🔥🔥", "alert": "MEDIUM"}
-    if best_score >= 0.16:
-        return {"edge_label": "EDGE MODERADO", "fire": "🔥🔥", "alert": "LOW"}
-    return {"edge_label": "SEÑAL DÉBIL", "fire": "⚠️", "alert": "INFO"}
+def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2: float) -> Dict[str, str]:
+    # EDGE ELITE: muy estricto
+    if (
+        best_score >= 0.80
+        and best_lift >= 2.10
+        and best_chi2 >= 7.0
+        and best_mi >= 0.00050
+    ):
+        return {
+            "edge_label": "EDGE ELITE",
+            "fire": "🔥🔥🔥🔥🔥🔥",
+            "alert": "HIGH",
+        }
+
+    # EDGE REAL: jugable
+    if (
+        best_score >= 0.70
+        and best_lift >= 1.90
+        and best_chi2 >= 5.0
+        and best_mi >= 0.00035
+    ):
+        return {
+            "edge_label": "EDGE REAL",
+            "fire": "🔥🔥🔥🔥",
+            "alert": "MEDIUM",
+        }
+
+    # EDGE MODERADO: se puede registrar, pero sin hype
+    if (
+        best_score >= 0.58
+        and best_lift >= 1.65
+        and best_chi2 >= 3.8
+        and best_mi >= 0.00020
+    ):
+        return {
+            "edge_label": "EDGE MODERADO",
+            "fire": "🔥🔥",
+            "alert": "LOW",
+        }
+
+    return {
+        "edge_label": "SEÑAL DÉBIL",
+        "fire": "⚠️",
+        "alert": "INFO",
+    }
 
 
 def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict:
@@ -327,11 +361,19 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
 
     top3 = [x["num"] for x in candidate_rows[:3]]
     top12 = [x["num"] for x in candidate_rows[:12]]
-    pairs = build_pair_scores(candidate_rows[:12], windows)
-    top_pairs = [x["pair"] for x in pairs[:3]]
+
+    # palés desactivados por performance real
+    pairs = build_pair_scores_disabled()
+    top_pairs: List[str] = []
 
     best = candidate_rows[0]
-    edge = classify_edge(best["score"], best["best_lift"], best["best_mi"])
+    edge = classify_edge(
+        best_score=best["score"],
+        best_lift=best["best_lift"],
+        best_mi=best["best_mi"],
+        best_chi2=best["best_chi2"],
+    )
+
     last_draw = train_df.iloc[-1]
     last3 = train_df.tail(3).copy()
 
@@ -350,6 +392,7 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
         "best_mi": round(float(best["best_mi"]), 6),
         "best_chi2": round(float(best["best_chi2"]), 6),
         "support": int(best["support"]),
+        "active_edges": int(best["active_edges"]),
         "rows_used": int(len(train_df)),
         "context": context,
         "last_draw": {
@@ -366,5 +409,5 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
             for _, r in last3.iterrows()
         ],
         "candidates": candidate_rows[:20],
-        "pairs": pairs[:10],
+        "pairs": pairs,
     }
