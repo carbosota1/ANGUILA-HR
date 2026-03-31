@@ -1,0 +1,398 @@
+import os
+import re
+import time
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+
+TZ_RD = ZoneInfo("America/Santo_Domingo")
+
+BASE_URL = "https://enloteria.com"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+        "Mobile/15E148 Safari/604.1"
+    )
+}
+
+# Ajusta esto si luego confirmas más horarios o cambian algunos.
+# Ahora mismo lo dejo 8AM -> 10PM por hora.
+ANGUILLA_HOURLY_SLOTS = [
+    "8AM", "9AM", "10AM", "11AM", "12PM",
+    "1PM", "2PM", "3PM", "4PM", "5PM",
+    "6PM", "7PM", "8PM", "9PM", "10PM",
+]
+
+DATA_DIR = "data"
+OUT_DIR = "outputs"
+CSV_PATH = os.path.join(DATA_DIR, "anguilla_hourly_history.csv")
+XLSX_PATH = os.path.join(DATA_DIR, "Anguilla history.xlsx")
+XLSX_SHEET = "history"
+
+
+def ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+
+def rd_now() -> datetime:
+    return datetime.now(TZ_RD)
+
+
+def normalize_2d(value: str) -> str:
+    """
+    Preserva formato 2 dígitos.
+    Ej:
+      '7'  -> '07'
+      '07' -> '07'
+      '99' -> '99'
+    """
+    s = str(value).strip()
+    if s.isdigit():
+        return s.zfill(2)
+    return s
+
+
+def slot_slug(slot: str) -> str:
+    """
+    '8AM' -> '8am'
+    '12PM' -> '12pm'
+    """
+    return slot.strip().lower()
+
+
+def build_url_for_date(target_date: date, slot: str) -> str:
+    """
+    Enloteria parece usar patrón:
+      /resultados-anguilla-8am-2026-03-30
+    """
+    return f"{BASE_URL}/resultados-anguilla-{slot_slug(slot)}-{target_date.isoformat()}"
+
+
+def build_today_url(slot: str) -> str:
+    """
+    Fallback para páginas HOY:
+      /resultados-anguilla-8am
+    """
+    return f"{BASE_URL}/resultados-anguilla-{slot_slug(slot)}"
+
+
+def fetch_html(url: str, timeout: int = 20) -> str:
+    resp = requests.get(url, headers=HEADERS, timeout=timeout)
+    resp.raise_for_status()
+    return resp.text
+
+
+def clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def extract_date_from_text(text: str) -> str | None:
+    """
+    Busca fecha ISO dentro del HTML como fallback.
+    """
+    m = re.search(r"(20\d{2}-\d{2}-\d{2})", text)
+    return m.group(1) if m else None
+
+
+def extract_numbers_from_text(text: str) -> list[str]:
+    """
+    Estrategia robusta:
+    1) buscar patrones cerca de 'Icono de bola del resultado'
+    2) si no, buscar números de 1-2 dígitos en bloques razonables
+    """
+    numbers = []
+
+    # Caso común visto en el parseado web:
+    # "Icono de bola del resultado 1 01 Icono de bola del resultado 2 99 ..."
+    pattern = re.findall(
+        r"Icono de bola del resultado\s*\d+\s*([0-9]{1,2})",
+        text,
+        flags=re.IGNORECASE
+    )
+    if pattern and len(pattern) >= 3:
+        numbers = [normalize_2d(x) for x in pattern[:3]]
+        return numbers
+
+    # Fallback: intenta extraer solo los primeros 3 números de 1-2 dígitos
+    # de un texto recortado si existe "números ganadores" o "resultado"
+    compact = text.replace("\n", " ")
+    candidates = re.findall(r"\b([0-9]{1,2})\b", compact)
+    if candidates:
+        # Filtra horas y año si aparecen
+        filtered = []
+        for x in candidates:
+            try:
+                n = int(x)
+            except ValueError:
+                continue
+            if 0 <= n <= 99:
+                filtered.append(normalize_2d(x))
+
+        # Deduplicar secuencia no, porque resultados válidos pueden repetir.
+        if len(filtered) >= 3:
+            return filtered[:3]
+
+    return []
+
+
+def parse_slot_page(html: str, requested_date: date, slot: str, source_url: str) -> dict:
+    soup = BeautifulSoup(html, "html.parser")
+    text = clean_text(soup.get_text(" ", strip=True))
+
+    row = {
+        "fecha": requested_date.isoformat(),
+        "sorteo": f"Anguilla {slot}",
+        "hora": slot,
+        "primero": "",
+        "segundo": "",
+        "tercero": "",
+        "fuente": "enloteria",
+        "source_url": source_url,
+        "capturado_rd": rd_now().strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "PENDING",
+        "raw_date_hint": "",
+        "notes": "",
+    }
+
+    if "Avísame cuando salga" in text:
+        row["status"] = "PENDING"
+        row["notes"] = "Resultado aún no publicado"
+        return row
+
+    nums = extract_numbers_from_text(text)
+    if len(nums) >= 3:
+        row["primero"], row["segundo"], row["tercero"] = nums[:3]
+        row["status"] = "OK"
+    else:
+        row["status"] = "NOT_FOUND"
+        row["notes"] = "No se pudieron extraer 3 números"
+
+    date_hint = extract_date_from_text(text)
+    if date_hint:
+        row["raw_date_hint"] = date_hint
+        # Si la página devuelve otra fecha distinta a la pedida, lo marcamos.
+        if date_hint != requested_date.isoformat():
+            row["notes"] = (
+                f"Fecha visible en página ({date_hint}) distinta a solicitada "
+                f"({requested_date.isoformat()})"
+            )
+            if row["status"] == "OK":
+                row["status"] = "DATE_MISMATCH"
+
+    return row
+
+
+def scrape_slot_for_date(target_date: date, slot: str, sleep_sec: float = 0.5) -> dict:
+    """
+    Intenta primero URL histórica por fecha.
+    Si falla o no devuelve resultado consistente, cae al endpoint HOY.
+    """
+    hist_url = build_url_for_date(target_date, slot)
+    today_url = build_today_url(slot)
+
+    # 1) Intento histórico
+    try:
+        html = fetch_html(hist_url)
+        row = parse_slot_page(html, target_date, slot, hist_url)
+
+        # Si vino bien, úsalo.
+        if row["status"] in {"OK", "PENDING", "DATE_MISMATCH"}:
+            time.sleep(sleep_sec)
+            return row
+
+    except requests.HTTPError as e:
+        hist_error = f"HTTPError histórico: {e}"
+    except Exception as e:
+        hist_error = f"Error histórico: {e}"
+    else:
+        hist_error = "Histórico sin match útil"
+
+    # 2) Fallback página de hoy
+    try:
+        html = fetch_html(today_url)
+        row = parse_slot_page(html, target_date, slot, today_url)
+        if row["notes"]:
+            row["notes"] = f"{row['notes']} | fallback_today | {hist_error}"
+        else:
+            row["notes"] = f"fallback_today | {hist_error}"
+        time.sleep(sleep_sec)
+        return row
+    except Exception as e:
+        return {
+            "fecha": target_date.isoformat(),
+            "sorteo": f"Anguilla {slot}",
+            "hora": slot,
+            "primero": "",
+            "segundo": "",
+            "tercero": "",
+            "fuente": "enloteria",
+            "source_url": hist_url,
+            "capturado_rd": rd_now().strftime("%Y-%m-%d %H:%M:%S"),
+            "status": "ERROR",
+            "raw_date_hint": "",
+            "notes": f"{hist_error} | fallback_error: {e}",
+        }
+
+
+def scrape_day(target_date: date) -> pd.DataFrame:
+    rows = []
+    for slot in ANGUILLA_HOURLY_SLOTS:
+        row = scrape_slot_for_date(target_date, slot)
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    return df
+
+
+def load_existing_csv(path: str) -> pd.DataFrame:
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=[
+            "fecha", "sorteo", "hora",
+            "primero", "segundo", "tercero",
+            "fuente", "source_url", "capturado_rd",
+            "status", "raw_date_hint", "notes"
+        ])
+    return pd.read_csv(path, dtype=str).fillna("")
+
+
+def dedupe_history(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Regla:
+    - misma clave fecha+sorteo
+    - prioriza OK sobre otros estados
+    - si hay empate, deja el más reciente por capturado_rd
+    """
+    if df.empty:
+        return df
+
+    priority = {
+        "OK": 5,
+        "DATE_MISMATCH": 4,
+        "PENDING": 3,
+        "NOT_FOUND": 2,
+        "ERROR": 1,
+    }
+    temp = df.copy()
+    temp["priority"] = temp["status"].map(priority).fillna(0).astype(int)
+    temp["capturado_rd_sort"] = pd.to_datetime(
+        temp["capturado_rd"], errors="coerce"
+    )
+
+    temp = temp.sort_values(
+        by=["fecha", "sorteo", "priority", "capturado_rd_sort"],
+        ascending=[True, True, False, False]
+    )
+
+    temp = temp.drop_duplicates(subset=["fecha", "sorteo"], keep="first")
+    temp = temp.drop(columns=["priority", "capturado_rd_sort"], errors="ignore")
+
+    # orden final
+    temp = temp.sort_values(by=["fecha", "hora"], ascending=[True, True]).reset_index(drop=True)
+    return temp
+
+
+def save_csv(df: pd.DataFrame, path: str) -> None:
+    ensure_dir(os.path.dirname(path))
+    df.to_csv(path, index=False, encoding="utf-8-sig")
+
+
+def save_xlsx(df: pd.DataFrame, path: str, sheet_name: str = "history") -> None:
+    ensure_dir(os.path.dirname(path))
+
+    out = df.copy()
+    for col in ["primero", "segundo", "tercero"]:
+        out[col] = out[col].astype(str).apply(
+            lambda x: normalize_2d(x) if x.strip() and x.strip().isdigit() else x
+        )
+
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        out.to_excel(writer, index=False, sheet_name=sheet_name)
+
+        ws = writer.sheets[sheet_name]
+        # Fuerza formato texto en columnas numéricas para no perder 00/07
+        text_cols = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
+        for col in text_cols:
+            for cell in ws[col]:
+                cell.number_format = "@"
+
+        # ancho básico
+        widths = {
+            "A": 12, "B": 18, "C": 8, "D": 10, "E": 10, "F": 10,
+            "G": 12, "H": 45, "I": 20, "J": 14, "K": 14, "L": 50
+        }
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+
+
+def update_history_for_date(target_date: date) -> pd.DataFrame:
+    existing = load_existing_csv(CSV_PATH)
+    fresh = scrape_day(target_date)
+
+    combined = pd.concat([existing, fresh], ignore_index=True)
+    combined = combined.fillna("")
+    combined = dedupe_history(combined)
+
+    save_csv(combined, CSV_PATH)
+    save_xlsx(combined, XLSX_PATH, XLSX_SHEET)
+    return fresh
+
+
+def backfill_days(days_back: int) -> pd.DataFrame:
+    """
+    Backfill simple: hoy, ayer, etc.
+    """
+    all_new = []
+    today_rd = rd_now().date()
+
+    for i in range(days_back):
+        d = today_rd - timedelta(days=i)
+        daily = update_history_for_date(d)
+        all_new.append(daily)
+
+    if all_new:
+        return pd.concat(all_new, ignore_index=True)
+    return pd.DataFrame()
+
+
+if __name__ == "__main__":
+    ensure_dir(DATA_DIR)
+    ensure_dir(OUT_DIR)
+
+    # Opciones:
+    # python scrape_anguilla_enloteria.py
+    # python scrape_anguilla_enloteria.py 2026-03-31
+    # python scrape_anguilla_enloteria.py backfill 7
+
+    import sys
+
+    if len(sys.argv) == 1:
+        target = rd_now().date()
+        fresh = update_history_for_date(target)
+        print(fresh.to_string(index=False))
+        print(f"\n✅ Actualizado: {CSV_PATH}")
+        print(f"✅ Actualizado: {XLSX_PATH}")
+
+    elif len(sys.argv) == 2 and sys.argv[1].lower() == "backfill":
+        fresh = backfill_days(7)
+        print(fresh.to_string(index=False))
+        print(f"\n✅ Backfill completado: 7 días")
+        print(f"✅ Actualizado: {CSV_PATH}")
+        print(f"✅ Actualizado: {XLSX_PATH}")
+
+    elif len(sys.argv) == 3 and sys.argv[1].lower() == "backfill":
+        days_back = int(sys.argv[2])
+        fresh = backfill_days(days_back)
+        print(fresh.to_string(index=False))
+        print(f"\n✅ Backfill completado: {days_back} días")
+        print(f"✅ Actualizado: {CSV_PATH}")
+        print(f"✅ Actualizado: {XLSX_PATH}")
+
+    else:
+        target = datetime.strptime(sys.argv[1], "%Y-%m-%d").date()
+        fresh = update_history_for_date(target)
+        print(fresh.to_string(index=False))
+        print(f"\n✅ Actualizado: {CSV_PATH}")
+        print(f"✅ Actualizado: {XLSX_PATH}")

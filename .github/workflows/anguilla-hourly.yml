@@ -1,0 +1,67 @@
+name: Anguilla Hourly Engine
+
+on:
+  schedule:
+    # America/Santo_Domingo = UTC-4
+    # 7:00 AM - 10:59 PM RD -> 11:00 - 02:59 UTC
+    - cron: "*/10 11-23 * * *"
+    - cron: "*/10 0-2 * * *"
+  workflow_dispatch:
+    inputs:
+      force_notify:
+        description: "Forzar Telegram aunque ya haya enviado ese target"
+        required: false
+        default: "0"
+      notify_dedupe:
+        description: "Evitar duplicados (1=on, 0=off)"
+        required: false
+        default: "1"
+
+permissions:
+  contents: write
+
+jobs:
+  run-engine:
+    runs-on: ubuntu-latest
+
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      TELEGRAM_NOTIFY: "1"
+
+      # Puedes cambiarlo desde workflow_dispatch
+      NOTIFY_DEDUPE: ${{ github.event.inputs.notify_dedupe || '1' }}
+
+      # Puedes forzarlo manualmente desde workflow_dispatch
+      FORCE_NOTIFY: ${{ github.event.inputs.force_notify || '0' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ensure folders
+        run: |
+          mkdir -p data outputs src .github/workflows
+
+      - name: Run Anguilla engine
+        run: |
+          python src/runner.py
+
+      - name: Commit updated data/outputs/state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ outputs/
+          git diff --cached --quiet || git commit -m "Update Anguilla picks/state [skip ci]"
+          git push
