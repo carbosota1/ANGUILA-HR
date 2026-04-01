@@ -22,9 +22,10 @@
     "54"
   ],
   "top_pairs": [],
-  "edge_label": "EDGE ELITE",
-  "fire": "🔥🔥🔥🔥🔥🔥",
-  "alert_level": "HIGH",
+  "edge_label": "EDGE REAL",
+  "fire": "🔥🔥🔥🔥",
+  "alert_level": "MEDIUM",
+  "strong_detected": "0",
   "best_score": 1.302144,
   "best_lift": 2.543426,
   "best_mi": 0.000875,
@@ -371,14 +372,15 @@
   ],
   "pairs": [],
   "signal_key": "2026-04-01|Anguilla|8AM",
-  "fingerprint": "78f63c446f6256c6eb14a9bb4ca6c5af",
-  "generated_rd": "2026-03-31 22:53:28",
+  "fingerprint": "85d8eadaea450f32ac8071cde90b95cb",
+  "generated_rd": "2026-03-31 23:04:39",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
-    "force_notify": false,
+    "force_notify": true,
     "bootstrap_backfill": false,
     "bootstrap_days": 365,
-    "min_ok_draws": 30
+    "min_ok_draws": 30,
+    "skip_weak_signals": true
   }
 }
