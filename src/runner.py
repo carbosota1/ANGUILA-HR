@@ -112,10 +112,6 @@ def maybe_update_history(now_rd: datetime) -> None:
 
 
 def maybe_bootstrap_history() -> None:
-    """
-    Si el historial está corto, intenta hacer backfill automático una sola vez
-    o cuando BOOTSTRAP_BACKFILL=1.
-    """
     if backfill_days is None:
         print("BOOTSTRAP: backfill_days no disponible.")
         return
@@ -150,8 +146,11 @@ def fingerprint_payload(payload: dict) -> str:
             "target_hora": payload["target_hora"],
             "top3": payload["top3"],
             "top12": payload["top12"],
-            "top_pairs": payload["top_pairs"],
             "best_score": payload["best_score"],
+            "best_lift": payload["best_lift"],
+            "best_mi": payload["best_mi"],
+            "best_chi2": payload["best_chi2"],
+            "edge_label": payload["edge_label"],
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -159,13 +158,17 @@ def fingerprint_payload(payload: dict) -> str:
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def should_send_notification(state: dict, signal_key: str, fp: str) -> tuple[bool, str]:
+def should_send_notification(state: dict, signal_key: str, fp: str, payload: dict) -> tuple[bool, str]:
     notify_enabled = env_bool("TELEGRAM_NOTIFY", "1")
     dedupe_enabled = env_bool("NOTIFY_DEDUPE", "1")
     force_notify = env_bool("FORCE_NOTIFY", "0")
+    skip_weak = env_bool("SKIP_WEAK_SIGNALS", "1")
 
     if not notify_enabled:
         return False, "TELEGRAM_NOTIFY=0"
+
+    if skip_weak and payload.get("edge_label") == "SEÑAL DÉBIL":
+        return False, "SKIP_WEAK_SIGNALS=1"
 
     if force_notify:
         return True, "FORCE_NOTIFY=1"
@@ -191,34 +194,54 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
 
     top3 = ", ".join(payload["top3"])
     top12 = ", ".join(payload["top12"])
-    top_pairs = " | ".join(payload["top_pairs"])
+    top_pairs = payload.get("top_pairs", [])
 
     ctx1 = ", ".join(payload["context"].get("lag1", []))
     ctx2 = ", ".join(payload["context"].get("lag2", []))
     ctx3 = ", ".join(payload["context"].get("lag3", []))
 
-    msg = (
-        f"{fire} <b>ANGUILLA CHI/MI ENGINE</b>\n"
-        f"{fire} <b>{edge_label}</b>\n\n"
-        f"🧩 <b>Señal:</b> {signal_key}\n"
-        f"🎯 <b>Target:</b> Anguilla {payload['target_hora']}\n"
-        f"📅 <b>Fecha:</b> {payload['target_fecha']}\n\n"
-        f"✅ <b>Top3:</b>\n{top3}\n\n"
-        f"📌 <b>Top12:</b>\n{top12}\n\n"
-        f"🎲 <b>Palé Top3:</b>\n{top_pairs}\n\n"
-        f"📊 <b>Debug:</b>\n"
-        f"best_score={payload['best_score']} | lift={payload['best_lift']} | mi={payload['best_mi']} | chi2={payload['best_chi2']}\n"
-        f"rows_used={payload['rows_used']} | support={payload['support']}\n\n"
-        f"🕒 <b>Contexto observado:</b>\n"
-        f"lag1: {ctx1}\n"
-        f"lag2: {ctx2}\n"
-        f"lag3: {ctx3}\n"
-    )
+    lines = [
+        f"{fire} <b>ANGUILLA CHI/MI ENGINE</b>",
+        f"{fire} <b>{edge_label}</b>",
+        "",
+        f"🧩 <b>Señal:</b> {signal_key}",
+        f"🎯 <b>Target:</b> Anguilla {payload['target_hora']}",
+        f"📅 <b>Fecha:</b> {payload['target_fecha']}",
+        "",
+        f"✅ <b>Top3:</b>",
+        top3,
+        "",
+        f"📌 <b>Top12:</b>",
+        top12,
+    ]
 
-    if payload["alert_level"] == "HIGH":
-        msg += f"\n{fire} <b>ATENCIÓN: EDGE FUERTE DETECTADO</b> {fire}\n"
+    if top_pairs:
+        lines.extend([
+            "",
+            f"🎲 <b>Palé Top3:</b>",
+            " | ".join(top_pairs),
+        ])
 
-    return msg
+    lines.extend([
+        "",
+        f"📊 <b>Debug:</b>",
+        f"best_score={payload['best_score']} | lift={payload['best_lift']} | mi={payload['best_mi']} | chi2={payload['best_chi2']}",
+        f"rows_used={payload['rows_used']} | support={payload['support']} | active_edges={payload.get('active_edges', 0)}",
+        "",
+        f"🕒 <b>Contexto observado:</b>",
+        f"lag1: {ctx1}",
+        f"lag2: {ctx2}",
+        f"lag3: {ctx3}",
+    ])
+
+    # Solo mostrar aviso de edge fuerte detectado cuando realmente lo sea
+    if str(payload.get("strong_detected", "0")) == "1":
+        lines.extend([
+            "",
+            f"{fire} <b>ATENCIÓN: EDGE FUERTE DETECTADO</b> {fire}",
+        ])
+
+    return "\n".join(lines)
 
 
 def maybe_send_warmup_message(ok_count: int) -> None:
@@ -299,25 +322,30 @@ def main() -> None:
         "bootstrap_backfill": env_bool("BOOTSTRAP_BACKFILL", "1"),
         "bootstrap_days": env_int("BOOTSTRAP_DAYS", 365),
         "min_ok_draws": min_ok_draws,
+        "skip_weak_signals": env_bool("SKIP_WEAK_SIGNALS", "1"),
     }
 
     save_json(PICKS_JSON, payload)
 
-    report_text = (
-        f'ANGUILLA CHI/MI ENGINE\n'
-        f'Generated RD: {payload["generated_rd"]}\n'
-        f'Target: {payload["target_fecha"]} {payload["target_hora"]}\n'
-        f'Signal key: {signal_key}\n'
-        f'Edge: {payload["edge_label"]}\n'
-        f'Top3: {", ".join(payload["top3"])}\n'
-        f'Top12: {", ".join(payload["top12"])}\n'
-        f'Pale Top3: {" | ".join(payload["top_pairs"])}\n'
-        f'best_score={payload["best_score"]} | lift={payload["best_lift"]} | mi={payload["best_mi"]} | chi2={payload["best_chi2"]}\n'
-        f'rows_used={payload["rows_used"]} | support={payload["support"]}\n'
-    )
+    report_lines = [
+        "ANGUILLA CHI/MI ENGINE",
+        f"Generated RD: {payload['generated_rd']}",
+        f"Target: {payload['target_fecha']} {payload['target_hora']}",
+        f"Signal key: {signal_key}",
+        f"Edge: {payload['edge_label']}",
+        f"Top3: {', '.join(payload['top3'])}",
+        f"Top12: {', '.join(payload['top12'])}",
+    ]
+    if payload.get("top_pairs"):
+        report_lines.append(f"Pale Top3: {' | '.join(payload['top_pairs'])}")
+    report_lines.extend([
+        f"best_score={payload['best_score']} | lift={payload['best_lift']} | mi={payload['best_mi']} | chi2={payload['best_chi2']}",
+        f"rows_used={payload['rows_used']} | support={payload['support']} | active_edges={payload.get('active_edges', 0)}",
+    ])
+    report_text = "\n".join(report_lines)
     save_text(REPORT_TXT, report_text)
 
-    send_ok, reason = should_send_notification(state, signal_key, fp)
+    send_ok, reason = should_send_notification(state, signal_key, fp, payload)
     notified_flag = False
 
     if send_ok:
