@@ -46,7 +46,7 @@ def load_history_csv(path: str) -> pd.DataFrame:
     df["hour24"] = df["hora"].map(lambda x: slot_to_hour24(str(x)))
     df["datetime"] = pd.to_datetime(
         df["fecha"] + " " + df["hour24"].astype(str) + ":00:00",
-        errors="coerce"
+        errors="coerce",
     )
 
     df = df.dropna(subset=["datetime"]).copy()
@@ -74,7 +74,7 @@ def contingency_from_lag(
     df: pd.DataFrame,
     lag: int,
     observed_num: str,
-    candidate_num: str
+    candidate_num: str,
 ) -> Tuple[int, int, int, int]:
     if len(df) <= lag:
         return 0, 0, 0, 0
@@ -213,7 +213,6 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
             best_mi = max(best_mi, mi)
             best_chi2 = max(best_chi2, chi2)
 
-            # filtro local: no sumar ruido débil
             if lift < 1.15 and chi2 < 1.25 and mi < 0.00008:
                 continue
 
@@ -226,11 +225,9 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
             )
             cond_signal += lag_weights[lag_name] * lag_signal
 
-    # frecuencia reciente y estabilidad
     recency_boost = max(p15 - p90, 0.0)
     medium_boost = max(p30 - p365, 0.0)
 
-    # penalizaciones: clave para bajar falsos fuertes
     mi_penalty = 0.0
     if best_mi < 0.00020:
         mi_penalty += 0.085
@@ -289,38 +286,34 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     }
 
 
-def build_pair_scores_disabled() -> List[Dict]:
-    return []
-
-
 def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2: float) -> Dict[str, str]:
-    # EDGE ELITE: muy estricto
+    # Solo esto debe disparar hype máximo
     if (
-        best_score >= 0.80
-        and best_lift >= 2.10
-        and best_chi2 >= 7.0
-        and best_mi >= 0.00050
+        best_score >= 0.90
+        and best_lift >= 2.50
+        and best_chi2 >= 12.0
+        and best_mi >= 0.00100
     ):
         return {
             "edge_label": "EDGE ELITE",
             "fire": "🔥🔥🔥🔥🔥🔥",
             "alert": "HIGH",
+            "strong_detected": "1",
         }
 
-    # EDGE REAL: jugable
     if (
         best_score >= 0.70
-        and best_lift >= 1.90
-        and best_chi2 >= 5.0
-        and best_mi >= 0.00035
+        and best_lift >= 2.00
+        and best_chi2 >= 6.0
+        and best_mi >= 0.00050
     ):
         return {
             "edge_label": "EDGE REAL",
             "fire": "🔥🔥🔥🔥",
             "alert": "MEDIUM",
+            "strong_detected": "0",
         }
 
-    # EDGE MODERADO: se puede registrar, pero sin hype
     if (
         best_score >= 0.58
         and best_lift >= 1.65
@@ -331,12 +324,14 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2
             "edge_label": "EDGE MODERADO",
             "fire": "🔥🔥",
             "alert": "LOW",
+            "strong_detected": "0",
         }
 
     return {
         "edge_label": "SEÑAL DÉBIL",
         "fire": "⚠️",
         "alert": "INFO",
+        "strong_detected": "0",
     }
 
 
@@ -362,8 +357,8 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
     top3 = [x["num"] for x in candidate_rows[:3]]
     top12 = [x["num"] for x in candidate_rows[:12]]
 
-    # palés desactivados por performance real
-    pairs = build_pair_scores_disabled()
+    # palés desactivados por ahora
+    pairs: List[Dict] = []
     top_pairs: List[str] = []
 
     best = candidate_rows[0]
@@ -387,6 +382,7 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
         "edge_label": edge["edge_label"],
         "fire": edge["fire"],
         "alert_level": edge["alert"],
+        "strong_detected": edge["strong_detected"],
         "best_score": round(float(best["score"]), 6),
         "best_lift": round(float(best["best_lift"]), 6),
         "best_mi": round(float(best["best_mi"]), 6),
