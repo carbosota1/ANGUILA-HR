@@ -195,6 +195,7 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
 
     for lag_name, observed_nums in context.items():
         lag = lag_to_int[lag_name]
+
         for obs_num in observed_nums:
             a, b, c, d = contingency_from_lag(w365, lag, obs_num, candidate_num)
             support = a + b
@@ -213,10 +214,12 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
             best_mi = max(best_mi, mi)
             best_chi2 = max(best_chi2, chi2)
 
+            # Edge local mínimo para no sumar ruido
+            if lift > 1.10 or chi2 > 1.0 or mi > 0.00010:
+                active_edges += 1
+
             if lift < 1.15 and chi2 < 1.25 and mi < 0.00008:
                 continue
-
-            active_edges += 1
 
             lag_signal = (
                 0.45 * min(max(lift - 1.0, 0.0), 4.0)
@@ -228,6 +231,7 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     recency_boost = max(p15 - p90, 0.0)
     medium_boost = max(p30 - p365, 0.0)
 
+    # Penalizaciones
     mi_penalty = 0.0
     if best_mi < 0.00020:
         mi_penalty += 0.085
@@ -250,6 +254,15 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     if total_support < 800:
         support_penalty += 0.020
 
+    # Nuevo filtro importante: demasiados active_edges = ruido disfrazado
+    density_penalty = 0.0
+    if active_edges > 8:
+        density_penalty += 0.12
+    elif active_edges > 6:
+        density_penalty += 0.07
+    elif active_edges > 5:
+        density_penalty += 0.03
+
     edge_count_penalty = 0.0
     if active_edges <= 1:
         edge_count_penalty += 0.025
@@ -265,6 +278,7 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
         - chi_penalty
         - lift_penalty
         - support_penalty
+        - density_penalty
         - edge_count_penalty
     )
 
@@ -286,13 +300,14 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     }
 
 
-def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2: float) -> Dict[str, str]:
-    # Solo esto debe disparar hype máximo
+def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2: float, active_edges: int) -> Dict[str, str]:
+    # EDGE ELITE: solo señales realmente limpias
     if (
         best_score >= 0.90
         and best_lift >= 2.50
         and best_chi2 >= 12.0
         and best_mi >= 0.00100
+        and active_edges <= 5
     ):
         return {
             "edge_label": "EDGE ELITE",
@@ -301,11 +316,13 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2
             "strong_detected": "1",
         }
 
+    # EDGE REAL: jugable y consistente
     if (
         best_score >= 0.70
         and best_lift >= 2.00
         and best_chi2 >= 6.0
         and best_mi >= 0.00050
+        and active_edges <= 6
     ):
         return {
             "edge_label": "EDGE REAL",
@@ -314,11 +331,13 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2
             "strong_detected": "0",
         }
 
+    # EDGE MODERADO: usable solo como cobertura, sin hype
     if (
         best_score >= 0.58
         and best_lift >= 1.65
         and best_chi2 >= 3.8
         and best_mi >= 0.00020
+        and active_edges <= 7
     ):
         return {
             "edge_label": "EDGE MODERADO",
@@ -357,7 +376,7 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
     top3 = [x["num"] for x in candidate_rows[:3]]
     top12 = [x["num"] for x in candidate_rows[:12]]
 
-    # palés desactivados por ahora
+    # Palés siguen desactivados por ahora
     pairs: List[Dict] = []
     top_pairs: List[str] = []
 
@@ -367,6 +386,7 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
         best_lift=best["best_lift"],
         best_mi=best["best_mi"],
         best_chi2=best["best_chi2"],
+        active_edges=best["active_edges"],
     )
 
     last_draw = train_df.iloc[-1]
