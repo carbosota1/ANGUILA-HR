@@ -1,9 +1,9 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-04-03 16:37:25
-Target: 2026-04-03 5PM
-Signal key: 2026-04-03|Anguilla|5PM
+Generated RD: 2026-04-03 17:06:17
+Target: 2026-04-03 6PM
+Signal key: 2026-04-03|Anguilla|6PM
 Edge: SEÑAL DÉBIL
 Top3: 18, 53, 92
 Top12: 18, 53, 92, 84, 70, 82, 02, 81, 48, 93, 11, 13
-best_score=1.097977 | lift=2.684283 | mi=0.00081 | chi2=12.296335
-rows_used=5344 | support=1376 | active_edges=8
+best_score=1.097316 | lift=2.683778 | mi=0.00081 | chi2=12.291401
+rows_used=5344 | support=1375 | active_edges=8
