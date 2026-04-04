@@ -3,14 +3,14 @@
   "last_fingerprint": "02b8fc6297ebd4b8ed3cf43305779e13",
   "last_target_hora": "2026-04-04|Anguilla|12PM",
   "last_sent_at_rd": "2026-04-04 11:03:13",
-  "last_run_at_rd": "2026-04-04 11:03:13",
+  "last_run_at_rd": "2026-04-04 11:12:21",
   "last_target_dt": "2026-04-04 12:00:00-04:00",
-  "last_edge_label": "EDGE REAL",
+  "last_edge_label": "EDGE MODERADO",
   "last_top3": [
-    "42",
-    "57",
-    "09"
+    "05",
+    "74",
+    "11"
   ],
   "last_status": "OK",
-  "ok_draws": 5347
+  "ok_draws": 5348
 }
