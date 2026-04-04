@@ -3,14 +3,14 @@
   "last_fingerprint": "2c2cd1db7b41f1270f2fbcbc39e5c84c",
   "last_target_hora": "2026-04-04|Anguilla|9AM",
   "last_sent_at_rd": "2026-04-04 08:57:18",
-  "last_run_at_rd": "2026-04-04 08:57:18",
-  "last_target_dt": "2026-04-04 09:00:00-04:00",
-  "last_edge_label": "EDGE REAL",
+  "last_run_at_rd": "2026-04-04 09:55:45",
+  "last_target_dt": "2026-04-04 10:00:00-04:00",
+  "last_edge_label": "SEÑAL DÉBIL",
   "last_top3": [
-    "18",
-    "21",
-    "02"
+    "45",
+    "85",
+    "11"
   ],
   "last_status": "OK",
-  "ok_draws": 5345
+  "ok_draws": 5346
 }
