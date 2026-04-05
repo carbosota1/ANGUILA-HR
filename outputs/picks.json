@@ -373,7 +373,7 @@
   "pairs": [],
   "signal_key": "2026-04-05|Anguilla|8AM",
   "fingerprint": "484d4c284e5747839c93ce1daf354398",
-  "generated_rd": "2026-04-05 07:30:48",
+  "generated_rd": "2026-04-05 07:58:08",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
