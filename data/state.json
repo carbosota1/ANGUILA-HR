@@ -3,14 +3,14 @@
   "last_fingerprint": "a1bb3a61e6451e9dedca7c494ce75198",
   "last_target_hora": "2026-04-05|Anguilla|1PM",
   "last_sent_at_rd": "2026-04-05 12:01:01",
-  "last_run_at_rd": "2026-04-05 14:01:21",
+  "last_run_at_rd": "2026-04-05 14:53:21",
   "last_target_dt": "2026-04-05 15:00:00-04:00",
   "last_edge_label": "SEÑAL DÉBIL",
   "last_top3": [
-    "83",
-    "24",
-    "51"
+    "18",
+    "32",
+    "06"
   ],
   "last_status": "OK",
-  "ok_draws": 5365
+  "ok_draws": 5366
 }
