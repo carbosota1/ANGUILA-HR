@@ -296,7 +296,6 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
         "active_edges": int(active_edges),
     }
 
-
 def classify_edge(
     best_score: float,
     best_lift: float,
@@ -304,49 +303,72 @@ def classify_edge(
     best_chi2: float,
     active_edges: int,
 ) -> Dict[str, str]:
-    # NO JUGAR: quieres seguir recibiéndolo, pero marcado claro
-    if active_edges >= 7 or best_mi < 0.00050:
+
+    # =========================
+    # 🚫 NO JUGAR (solo señal realmente mala)
+    # =========================
+    if best_score < 0.65 or best_mi < 0.00045:
         return {
             "edge_label": "NO JUGAR",
             "fire": "❌",
             "alert": "NONE",
             "strong_detected": "0",
+            "risk_flag": "",
         }
 
+    # =========================
+    # 🔥 EDGE ELITE
+    # =========================
     if (
         best_score >= 0.90
         and best_lift >= 2.50
         and best_chi2 >= 12.0
         and best_mi >= 0.00100
-        and active_edges <= 5
     ):
         return {
             "edge_label": "EDGE ELITE",
             "fire": "🔥🔥🔥🔥🔥🔥",
             "alert": "HIGH",
             "strong_detected": "1",
+            "risk_flag": "",
         }
 
+    # =========================
+    # 🔥 EDGE REAL
+    # =========================
     if (
         best_score >= 0.70
         and best_lift >= 2.00
         and best_chi2 >= 6.0
-        and best_mi >= 0.00060
-        and active_edges <= 5
+        and best_mi >= 0.00055
     ):
+        risk_flag = ""
+        if active_edges >= 7:
+            risk_flag = "⚠️ Riesgo: alta densidad de edges"
+
         return {
             "edge_label": "EDGE REAL",
             "fire": "🔥🔥🔥🔥",
             "alert": "MEDIUM",
             "strong_detected": "0",
+            "risk_flag": risk_flag,
         }
+
+    # =========================
+    # 🔥 EDGE MODERADO
+    # =========================
+    risk_flag = ""
+    if active_edges >= 7:
+        risk_flag = "⚠️ Riesgo: señal inestable"
 
     return {
         "edge_label": "EDGE MODERADO",
         "fire": "🔥🔥",
         "alert": "LOW",
         "strong_detected": "0",
+        "risk_flag": risk_flag,
     }
+
 
 
 def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> Dict:
