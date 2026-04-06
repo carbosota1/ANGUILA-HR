@@ -134,7 +134,8 @@ def classify_edge(score, lift, mi_val, chi2_val, active_edges):
 
 def run_model_for_target(df, target_dt):
 
-    train = df[df["datetime"] < target_dt].copy()
+    target_dt = pd.Timestamp(target_dt).tz_localize(None)
+    df["datetime"] = pd.to_datetime(df["datetime"]).dt.tz_localize(None)
 
     context = {
         "lag1": train.iloc[-1]["nums"],
