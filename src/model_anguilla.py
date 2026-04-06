@@ -214,7 +214,6 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
             best_mi = max(best_mi, mi)
             best_chi2 = max(best_chi2, chi2)
 
-            # Edge local mínimo para no sumar ruido
             if lift > 1.10 or chi2 > 1.0 or mi > 0.00010:
                 active_edges += 1
 
@@ -231,7 +230,6 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     recency_boost = max(p15 - p90, 0.0)
     medium_boost = max(p30 - p365, 0.0)
 
-    # Penalizaciones
     mi_penalty = 0.0
     if best_mi < 0.00020:
         mi_penalty += 0.085
@@ -254,7 +252,6 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     if total_support < 800:
         support_penalty += 0.020
 
-    # Nuevo filtro importante: demasiados active_edges = ruido disfrazado
     density_penalty = 0.0
     if active_edges > 8:
         density_penalty += 0.12
@@ -300,8 +297,22 @@ def score_candidate(candidate_num: str, windows: Dict[str, pd.DataFrame], contex
     }
 
 
-def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2: float, active_edges: int) -> Dict[str, str]:
-    # EDGE ELITE: solo señales realmente limpias
+def classify_edge(
+    best_score: float,
+    best_lift: float,
+    best_mi: float,
+    best_chi2: float,
+    active_edges: int,
+) -> Dict[str, str]:
+    # NO JUGAR: quieres seguir recibiéndolo, pero marcado claro
+    if active_edges >= 7 or best_mi < 0.00050:
+        return {
+            "edge_label": "NO JUGAR",
+            "fire": "❌",
+            "alert": "NONE",
+            "strong_detected": "0",
+        }
+
     if (
         best_score >= 0.90
         and best_lift >= 2.50
@@ -316,13 +327,12 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2
             "strong_detected": "1",
         }
 
-    # EDGE REAL: jugable y consistente
     if (
         best_score >= 0.70
         and best_lift >= 2.00
         and best_chi2 >= 6.0
-        and best_mi >= 0.00050
-        and active_edges <= 6
+        and best_mi >= 0.00060
+        and active_edges <= 5
     ):
         return {
             "edge_label": "EDGE REAL",
@@ -331,25 +341,10 @@ def classify_edge(best_score: float, best_lift: float, best_mi: float, best_chi2
             "strong_detected": "0",
         }
 
-    # EDGE MODERADO: usable solo como cobertura, sin hype
-    if (
-        best_score >= 0.58
-        and best_lift >= 1.65
-        and best_chi2 >= 3.8
-        and best_mi >= 0.00020
-        and active_edges <= 7
-    ):
-        return {
-            "edge_label": "EDGE MODERADO",
-            "fire": "🔥🔥",
-            "alert": "LOW",
-            "strong_detected": "0",
-        }
-
     return {
-        "edge_label": "SEÑAL DÉBIL",
-        "fire": "⚠️",
-        "alert": "INFO",
+        "edge_label": "EDGE MODERADO",
+        "fire": "🔥🔥",
+        "alert": "LOW",
         "strong_detected": "0",
     }
 
@@ -376,7 +371,6 @@ def run_model_for_target(history_df: pd.DataFrame, target_dt: pd.Timestamp) -> D
     top3 = [x["num"] for x in candidate_rows[:3]]
     top12 = [x["num"] for x in candidate_rows[:12]]
 
-    # Palés siguen desactivados por ahora
     pairs: List[Dict] = []
     top_pairs: List[str] = []
 
