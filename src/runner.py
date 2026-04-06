@@ -199,6 +199,9 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
     lines = [
         f"{fire} <b>ANGUILLA CHI/MI ENGINE</b>",
         f"{fire} <b>{edge_label}</b>",
+        risk_flag = payload.get("risk_flag", "")
+        if risk_flag:
+            lines.append(f"⚠️ {risk_flag}")
         "",
         f"🧩 <b>Señal:</b> {signal_key}",
         f"🎯 <b>Target:</b> Anguilla {payload['target_hora']}",
