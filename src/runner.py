@@ -199,14 +199,18 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
     lines = [
         f"{fire} <b>ANGUILLA CHI/MI ENGINE</b>",
         f"{fire} <b>{edge_label}</b>",
-        risk_flag = payload.get("risk_flag", "")
-        if risk_flag:
-            lines.append(f"⚠️ {risk_flag}")
+    ]
+
+    risk_flag = payload.get("risk_flag", "")
+    if risk_flag:
+        lines.append(f"⚠️ <b>{risk_flag}</b>")
+
+    lines.extend([
         "",
         f"🧩 <b>Señal:</b> {signal_key}",
         f"🎯 <b>Target:</b> Anguilla {payload['target_hora']}",
         f"📅 <b>Fecha:</b> {payload['target_fecha']}",
-    ]
+    ])
 
     if payload["edge_label"] == "NO JUGAR":
         lines.extend([
@@ -339,13 +343,21 @@ def main() -> None:
         f"Target: {payload['target_fecha']} {payload['target_hora']}",
         f"Signal key: {signal_key}",
         f"Edge: {payload['edge_label']}",
+    ]
+
+    if payload.get("risk_flag"):
+        report_lines.append(f"Risk: {payload['risk_flag']}")
+
+    report_lines.extend([
         f"Top3: {', '.join(payload['top3'])}",
         f"Top12: {', '.join(payload['top12'])}",
         f"best_score={payload['best_score']} | lift={payload['best_lift']} | mi={payload['best_mi']} | chi2={payload['best_chi2']}",
         f"rows_used={payload['rows_used']} | support={payload['support']} | active_edges={payload.get('active_edges', 0)}",
-    ]
+    ])
+
     if payload["edge_label"] == "NO JUGAR":
         report_lines.append("NO JUGAR ESTE PICK")
+
     report_text = "\n".join(report_lines)
     save_text(REPORT_TXT, report_text)
 
