@@ -1,11 +1,11 @@
 {
   "last_signal_key": "2026-04-06|Anguilla|8AM",
-  "last_fingerprint": "e11a954ad2ae90c83513cdc1006e1b4c",
+  "last_fingerprint": "814ab7fa9d472fdc8e3b26cfdf4f7298",
   "last_target_hora": "2026-04-06|Anguilla|8AM",
-  "last_sent_at_rd": "2026-04-05 22:49:37",
-  "last_run_at_rd": "2026-04-06 01:14:28",
+  "last_sent_at_rd": "2026-04-06 02:18:19",
+  "last_run_at_rd": "2026-04-06 02:18:19",
   "last_target_dt": "2026-04-06 08:00:00-04:00",
-  "last_edge_label": "EDGE MODERADO",
+  "last_edge_label": "NO JUGAR",
   "last_top3": [
     "85",
     "27",

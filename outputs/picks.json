@@ -22,9 +22,9 @@
     "69"
   ],
   "top_pairs": [],
-  "edge_label": "EDGE MODERADO",
-  "fire": "🔥🔥",
-  "alert_level": "LOW",
+  "edge_label": "NO JUGAR",
+  "fire": "❌",
+  "alert_level": "NONE",
   "strong_detected": "0",
   "best_score": 1.283816,
   "best_lift": 2.297364,
@@ -372,15 +372,14 @@
   ],
   "pairs": [],
   "signal_key": "2026-04-06|Anguilla|8AM",
-  "fingerprint": "e11a954ad2ae90c83513cdc1006e1b4c",
-  "generated_rd": "2026-04-06 01:14:28",
+  "fingerprint": "814ab7fa9d472fdc8e3b26cfdf4f7298",
+  "generated_rd": "2026-04-06 02:18:19",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
-    "force_notify": false,
+    "force_notify": true,
     "bootstrap_backfill": false,
     "bootstrap_days": 365,
-    "min_ok_draws": 30,
-    "skip_weak_signals": true
+    "min_ok_draws": 30
   }
 }
