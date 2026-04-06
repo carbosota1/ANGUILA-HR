@@ -163,7 +163,7 @@ def classify_edge(
         risk = "Riesgo: alta densidad de edges" if active_edges >= 7 else ""
         return {
             "edge_label": "EDGE REAL",
-            "fire": "🔥🔥🔥🔥",
+            "fire": "🔥🔥🔥",
             "alert": "MEDIUM",
             "strong_detected": "0",
             "risk_flag": risk,
@@ -173,7 +173,7 @@ def classify_edge(
     risk = "Riesgo: señal inestable" if active_edges >= 7 else ""
     return {
         "edge_label": "EDGE MODERADO",
-        "fire": "🔥🔥",
+        "fire": "🔥",
         "alert": "LOW",
         "strong_detected": "0",
         "risk_flag": risk,
