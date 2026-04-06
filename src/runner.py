@@ -162,13 +162,9 @@ def should_send_notification(state: dict, signal_key: str, fp: str, payload: dic
     notify_enabled = env_bool("TELEGRAM_NOTIFY", "1")
     dedupe_enabled = env_bool("NOTIFY_DEDUPE", "1")
     force_notify = env_bool("FORCE_NOTIFY", "0")
-    skip_weak = env_bool("SKIP_WEAK_SIGNALS", "1")
 
     if not notify_enabled:
         return False, "TELEGRAM_NOTIFY=0"
-
-    if skip_weak and payload.get("edge_label") == "SEÑAL DÉBIL":
-        return False, "SKIP_WEAK_SIGNALS=1"
 
     if force_notify:
         return True, "FORCE_NOTIFY=1"
@@ -207,13 +203,22 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
         f"🧩 <b>Señal:</b> {signal_key}",
         f"🎯 <b>Target:</b> Anguilla {payload['target_hora']}",
         f"📅 <b>Fecha:</b> {payload['target_fecha']}",
+    ]
+
+    if payload["edge_label"] == "NO JUGAR":
+        lines.extend([
+            "",
+            "❌❌❌ <b>NO JUGAR ESTE PICK</b> ❌❌❌",
+        ])
+
+    lines.extend([
         "",
         f"✅ <b>Top3:</b>",
         top3,
         "",
         f"📌 <b>Top12:</b>",
         top12,
-    ]
+    ])
 
     if top_pairs:
         lines.extend([
@@ -234,7 +239,6 @@ def build_telegram_message(payload: dict, signal_key: str) -> str:
         f"lag3: {ctx3}",
     ])
 
-    # Solo mostrar aviso de edge fuerte detectado cuando realmente lo sea
     if str(payload.get("strong_detected", "0")) == "1":
         lines.extend([
             "",
@@ -322,7 +326,6 @@ def main() -> None:
         "bootstrap_backfill": env_bool("BOOTSTRAP_BACKFILL", "1"),
         "bootstrap_days": env_int("BOOTSTRAP_DAYS", 365),
         "min_ok_draws": min_ok_draws,
-        "skip_weak_signals": env_bool("SKIP_WEAK_SIGNALS", "1"),
     }
 
     save_json(PICKS_JSON, payload)
@@ -335,13 +338,11 @@ def main() -> None:
         f"Edge: {payload['edge_label']}",
         f"Top3: {', '.join(payload['top3'])}",
         f"Top12: {', '.join(payload['top12'])}",
-    ]
-    if payload.get("top_pairs"):
-        report_lines.append(f"Pale Top3: {' | '.join(payload['top_pairs'])}")
-    report_lines.extend([
         f"best_score={payload['best_score']} | lift={payload['best_lift']} | mi={payload['best_mi']} | chi2={payload['best_chi2']}",
         f"rows_used={payload['rows_used']} | support={payload['support']} | active_edges={payload.get('active_edges', 0)}",
-    ])
+    ]
+    if payload["edge_label"] == "NO JUGAR":
+        report_lines.append("NO JUGAR ESTE PICK")
     report_text = "\n".join(report_lines)
     save_text(REPORT_TXT, report_text)
 
