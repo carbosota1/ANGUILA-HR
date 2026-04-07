@@ -1,5 +1,5 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-04-06 22:43:08
+Generated RD: 2026-04-07 01:01:10
 Target: 2026-04-07 8AM
 Signal key: 2026-04-07|Anguilla|8AM
 Edge: EDGE REAL
