@@ -274,11 +274,11 @@
   ],
   "signal_key": "2026-04-08|Anguilla|1PM",
   "fingerprint": "42026051a74e142a4e9aa6c7676b8f99",
-  "generated_rd": "2026-04-08 12:15:40",
+  "generated_rd": "2026-04-08 12:18:41",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
-    "force_notify": false,
+    "force_notify": true,
     "bootstrap_backfill": false,
     "bootstrap_days": 365,
     "min_ok_draws": 30
