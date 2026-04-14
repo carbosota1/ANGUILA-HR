@@ -3,8 +3,7 @@ name: Anguilla Hourly Engine
 on:
   schedule:
     # 7AM–11PM RD (UTC-4 -> 11–03 UTC)
-    - cron: "*/10 11-23 * * *"
-    - cron: "*/10 0-3 * * *"
+    
   workflow_dispatch:
     inputs:
       force_notify:
