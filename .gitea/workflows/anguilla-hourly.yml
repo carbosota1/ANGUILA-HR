@@ -1,5 +1,8 @@
 name: Anguilla Hourly Engine
 on:
+  push:
+    paths-ignore:
+      - '**'
   schedule:
     - cron: "20 11 * * *"  # 7:20 AM RD
     - cron: "20 12 * * *"  # 8:20 AM RD
