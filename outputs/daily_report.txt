@@ -1,7 +1,7 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-05-24 15:21:03
-Target: 2026-05-24 4PM
-Signal key: 2026-05-24|Anguilla|4PM
+Generated RD: 2026-05-24 16:21:03
+Target: 2026-05-24 5PM
+Signal key: 2026-05-24|Anguilla|5PM
 Edge: EDGE MODERADO
 Risk: Riesgo: señal inestable
 Top3: 39, 57, 56
