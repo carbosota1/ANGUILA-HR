@@ -28,44 +28,18 @@ ANGUILLA_HOURLY_SLOTS = [
 
 VALID_SORTEOS = {f"Anguilla {slot}" for slot in ANGUILLA_HOURLY_SLOTS}
 
-SLOT_TO_CLOCK = {
-    "8AM": "8:00AM",
-    "9AM": "9:00AM",
-    "10AM": "10:00AM",
-    "11AM": "11:00AM",
-    "12PM": "12:00PM",
-    "1PM": "1:00PM",
-    "2PM": "2:00PM",
-    "3PM": "3:00PM",
-    "4PM": "4:00PM",
-    "5PM": "5:00PM",
-    "6PM": "6:00PM",
-    "7PM": "7:00PM",
-    "8PM": "8:00PM",
-    "9PM": "9:00PM",
-    "10PM": "10:00PM",
-}
-
-MESES_ES = {
-    "ene": 1, "enero": 1,
-    "feb": 2, "febrero": 2,
-    "mar": 3, "marzo": 3,
-    "abr": 4, "abril": 4,
-    "may": 5, "mayo": 5,
-    "jun": 6, "junio": 6,
-    "jul": 7, "julio": 7,
-    "ago": 8, "agosto": 8,
-    "sep": 9, "sept": 9, "set": 9, "septiembre": 9, "setiembre": 9,
-    "oct": 10, "octubre": 10,
-    "nov": 11, "noviembre": 11,
-    "dic": 12, "diciembre": 12,
-}
-
 DATA_DIR = "data"
 OUT_DIR = "outputs"
 CSV_PATH = os.path.join(DATA_DIR, "anguilla_hourly_history.csv")
 XLSX_PATH = os.path.join(DATA_DIR, "Anguilla history.xlsx")
 XLSX_SHEET = "history"
+
+COLUMNS = [
+    "fecha", "sorteo", "hora",
+    "primero", "segundo", "tercero",
+    "fuente", "source_url", "capturado_rd",
+    "status", "raw_date_hint", "notes",
+]
 
 
 def ensure_dir(path: str) -> None:
@@ -74,10 +48,6 @@ def ensure_dir(path: str) -> None:
 
 def rd_now() -> datetime:
     return datetime.now(TZ_RD)
-
-
-def clean_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text or "").strip()
 
 
 def normalize_2d(value: str) -> str:
@@ -97,122 +67,44 @@ def fetch_html(url: str, timeout: int = 25) -> str:
     return resp.text
 
 
-def parse_es_date(text: str) -> str | None:
-    t = clean_text(text).lower()
-    t = (
-        t.replace("á", "a")
-         .replace("é", "e")
-         .replace("í", "i")
-         .replace("ó", "o")
-         .replace("ú", "u")
-    )
-
-    m = re.search(r"(\d{1,2})\s+de\s+([a-z]+),\s*(20\d{2})", t)
-    if not m:
-        return None
-
-    day = int(m.group(1))
-    month_name = m.group(2)
-    year = int(m.group(3))
-
-    month = MESES_ES.get(month_name)
-    if not month:
-        return None
-
-    return f"{year:04d}-{month:02d}-{day:02d}"
-
-
-def html_to_lines(html: str) -> list[str]:
+def extraer_sorteos_de_pagina(html: str, debug: bool = False) -> dict:
+    """
+    Extrae resultados usando data-lottery-name y result-number.
+    Esta es la lógica que SÍ funciona (tomada de scraper.py).
+    Devuelve un dict {nombre_sorteo: [p1, p2, p3]}.
+    """
     soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text("\n", strip=True)
-    lines = [clean_text(x) for x in text.splitlines()]
-    lines = [x for x in lines if x]
-    return lines
+    blocks = soup.find_all(attrs={"data-lottery-name": True})
 
+    if debug:
+        nombres = [b.get("data-lottery-name") for b in blocks]
+        print(f"  [DEBUG] Bloques encontrados: {nombres}")
 
-def is_anguilla_title(line: str) -> bool:
-    return clean_text(line) in VALID_SORTEOS
-
-
-def is_clock(line: str) -> bool:
-    return re.fullmatch(r"[0-9]{1,2}:\d{2}[AP]M", clean_text(line).upper()) is not None
-
-
-def is_ball_number(line: str) -> bool:
-    return re.fullmatch(r"[0-9]{1,2}", clean_text(line)) is not None
-
-
-def extract_anguilla_blocks_from_lines(lines: list[str], target_date: date) -> list[dict]:
-    target_iso = target_date.isoformat()
-    rows = []
-    seen = set()
-
-    i = 0
-    n = len(lines)
-
-    while i < n:
-        line = lines[i]
-
-        if not is_anguilla_title(line):
-            i += 1
+    resultados = {}
+    for block in blocks:
+        nombre = block.get("data-lottery-name", "").strip()
+        if nombre not in VALID_SORTEOS:
             continue
 
-        sorteo = clean_text(line)
-        slot = sorteo.replace("Anguilla ", "").strip()
-        expected_clock = SLOT_TO_CLOCK.get(slot)
+        num_divs = block.find_all("div", class_="result-number")
+        numeros = []
+        for d in num_divs:
+            txt = d.get_text(strip=True)
+            if re.match(r"^\d{1,2}$", txt):
+                numeros.append(str(int(txt)).zfill(2))
 
-        date_found = None
-        hour_found = None
-        nums = []
+        if len(numeros) >= 3:
+            resultados[nombre] = numeros[:3]
+            if debug:
+                print(f"  [DEBUG] {nombre}: {numeros[:3]}")
+        else:
+            if debug:
+                print(f"  [DEBUG] {nombre}: numeros insuficientes {numeros}")
 
-        j = i + 1
-        max_j = min(i + 35, n)
-
-        while j < max_j:
-            cur = lines[j]
-
-            if j > i + 1 and cur.startswith("Anguilla ") and cur != sorteo:
-                break
-
-            maybe_date = parse_es_date(cur)
-            if maybe_date:
-                date_found = maybe_date
-
-            if is_clock(cur):
-                hour_found = cur.upper()
-
-            if is_ball_number(cur):
-                nums.append(normalize_2d(cur))
-                if len(nums) == 3:
-                    break
-
-            j += 1
-
-        if date_found == target_iso and hour_found == expected_clock and len(nums) >= 3:
-            key = (target_iso, sorteo)
-            if key not in seen:
-                seen.add(key)
-                rows.append({
-                    "fecha": target_iso,
-                    "sorteo": sorteo,
-                    "hora": slot,
-                    "primero": nums[0],
-                    "segundo": nums[1],
-                    "tercero": nums[2],
-                    "fuente": "enloteria_daily",
-                    "source_url": "",
-                    "capturado_rd": rd_now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "status": "OK",
-                    "raw_date_hint": target_iso,
-                    "notes": "",
-                })
-
-        i += 1
-
-    return rows
+    return resultados
 
 
-def scrape_day(target_date: date, sleep_sec: float = 0.2) -> pd.DataFrame:
+def scrape_day(target_date: date, sleep_sec: float = 0.2, debug: bool = False) -> pd.DataFrame:
     """
     IMPORTANTE:
     Solo devuelve filas OK encontradas.
@@ -222,51 +114,47 @@ def scrape_day(target_date: date, sleep_sec: float = 0.2) -> pd.DataFrame:
 
     try:
         html = fetch_html(url)
-        lines = html_to_lines(html)
-        found_blocks = extract_anguilla_blocks_from_lines(lines, target_date)
+        resultados = extraer_sorteos_de_pagina(html, debug=debug)
 
-        if not found_blocks:
-            return pd.DataFrame(columns=[
-                "fecha", "sorteo", "hora",
-                "primero", "segundo", "tercero",
-                "fuente", "source_url", "capturado_rd",
-                "status", "raw_date_hint", "notes"
-            ])
+        if not resultados:
+            return pd.DataFrame(columns=COLUMNS)
 
+        target_iso = target_date.isoformat()
         rows = []
-        for row in found_blocks:
-            r = row.copy()
-            r["source_url"] = url
-            rows.append(r)
+        for sorteo, nums in resultados.items():
+            slot = sorteo.replace("Anguilla ", "").strip()
+            rows.append({
+                "fecha": target_iso,
+                "sorteo": sorteo,
+                "hora": slot,
+                "primero": nums[0],
+                "segundo": nums[1],
+                "tercero": nums[2],
+                "fuente": "enloteria_daily",
+                "source_url": url,
+                "capturado_rd": rd_now().strftime("%Y-%m-%d %H:%M:%S"),
+                "status": "OK",
+                "raw_date_hint": target_iso,
+                "notes": "",
+            })
 
         time.sleep(sleep_sec)
         return pd.DataFrame(rows)
 
     except Exception as e:
         print(f"SCRAPE_DAY ERROR {target_date}: {e}")
-        return pd.DataFrame(columns=[
-            "fecha", "sorteo", "hora",
-            "primero", "segundo", "tercero",
-            "fuente", "source_url", "capturado_rd",
-            "status", "raw_date_hint", "notes"
-        ])
+        return pd.DataFrame(columns=COLUMNS)
 
 
 def load_existing_csv(path: str) -> pd.DataFrame:
-    cols = [
-        "fecha", "sorteo", "hora",
-        "primero", "segundo", "tercero",
-        "fuente", "source_url", "capturado_rd",
-        "status", "raw_date_hint", "notes"
-    ]
     if not os.path.exists(path):
-        return pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=COLUMNS)
 
     df = pd.read_csv(path, dtype=str).fillna("")
-    for c in cols:
+    for c in COLUMNS:
         if c not in df.columns:
             df[c] = ""
-    return df[cols]
+    return df[COLUMNS]
 
 
 def dedupe_history(df: pd.DataFrame) -> pd.DataFrame:
@@ -318,9 +206,9 @@ def save_xlsx(df: pd.DataFrame, path: str, sheet_name: str = "history") -> None:
             ws.column_dimensions[col].width = width
 
 
-def update_history_with_day(target_date: date) -> pd.DataFrame:
+def update_history_with_day(target_date: date, debug: bool = False) -> pd.DataFrame:
     existing = load_existing_csv(CSV_PATH)
-    fresh = scrape_day(target_date)
+    fresh = scrape_day(target_date, debug=debug)
 
     if fresh.empty:
         # No guardar nada si no apareció ningún resultado nuevo
@@ -351,12 +239,7 @@ def backfill_days(days_back: int, pause_sec: float = 0.25) -> pd.DataFrame:
     if all_new:
         return pd.concat(all_new, ignore_index=True)
 
-    return pd.DataFrame(columns=[
-        "fecha", "sorteo", "hora",
-        "primero", "segundo", "tercero",
-        "fuente", "source_url", "capturado_rd",
-        "status", "raw_date_hint", "notes"
-    ])
+    return pd.DataFrame(columns=COLUMNS)
 
 
 def print_summary(df: pd.DataFrame) -> None:
@@ -381,7 +264,7 @@ if __name__ == "__main__":
 
     elif len(sys.argv) == 3 and sys.argv[1].lower() == "day":
         target = datetime.strptime(sys.argv[2], "%Y-%m-%d").date()
-        fresh = update_history_with_day(target)
+        fresh = update_history_with_day(target, debug=True)
         print_summary(fresh)
         print(f"\n✅ Actualizado: {CSV_PATH}")
         print(f"✅ Actualizado: {XLSX_PATH}")
