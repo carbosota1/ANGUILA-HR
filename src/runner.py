@@ -103,9 +103,23 @@ def maybe_update_history(now_rd: datetime) -> None:
         print("SCRAPER: no importado, continúo con historial existente.")
         return
 
+    scraper_debug = env_bool("SCRAPER_DEBUG", "1")
+
     try:
-        update_history_with_day(now_rd.date())
-        update_history_with_day((now_rd - timedelta(days=1)).date())
+        print(f"SCRAPER: HISTORY_CSV = {HISTORY_CSV}")
+        print(f"SCRAPER: existe HISTORY_CSV? {os.path.exists(HISTORY_CSV)}")
+
+        fresh_today = update_history_with_day(now_rd.date(), debug=scraper_debug)
+        print(f"SCRAPER: filas nuevas para {now_rd.date()}: {len(fresh_today)}")
+        if not fresh_today.empty:
+            print(fresh_today[["fecha", "sorteo", "primero", "segundo", "tercero"]].to_string(index=False))
+
+        ayer = (now_rd - timedelta(days=1)).date()
+        fresh_ayer = update_history_with_day(ayer, debug=scraper_debug)
+        print(f"SCRAPER: filas nuevas para {ayer}: {len(fresh_ayer)}")
+        if not fresh_ayer.empty:
+            print(fresh_ayer[["fecha", "sorteo", "primero", "segundo", "tercero"]].to_string(index=False))
+
         print("SCRAPER: historial actualizado.")
     except Exception as e:
         print(f"SCRAPER ERROR: {e}")
