@@ -28,8 +28,13 @@ ANGUILLA_HOURLY_SLOTS = [
 
 VALID_SORTEOS = {f"Anguilla {slot}" for slot in ANGUILLA_HOURLY_SLOTS}
 
-DATA_DIR = "data"
-OUT_DIR = "outputs"
+# Rutas absolutas, calculadas igual que en runner.py (este archivo vive en src/,
+# por lo que BASE_DIR es la raiz del repo). Asi no importa desde donde se
+# ejecute el proceso ni cual sea el cwd: siempre se lee/escribe el mismo CSV
+# que usa runner.py.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+OUT_DIR = os.path.join(BASE_DIR, "outputs")
 CSV_PATH = os.path.join(DATA_DIR, "anguilla_hourly_history.csv")
 XLSX_PATH = os.path.join(DATA_DIR, "Anguilla history.xlsx")
 XLSX_SHEET = "history"
