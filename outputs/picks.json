@@ -1,7 +1,7 @@
 {
   "target_fecha": "2026-06-14",
-  "target_hora": "6PM",
-  "target_datetime": "2026-06-14 18:00:00",
+  "target_hora": "7PM",
+  "target_datetime": "2026-06-14 19:00:00",
   "top3": [
     "92",
     "55",
@@ -272,9 +272,9 @@
       "support": 1614
     }
   ],
-  "signal_key": "2026-06-14|Anguilla|6PM",
-  "fingerprint": "e5a2d0f76b36dfe859da3fd7e8b9fb6c",
-  "generated_rd": "2026-06-14 17:20:59",
+  "signal_key": "2026-06-14|Anguilla|7PM",
+  "fingerprint": "4ee8c26842faa6c8dbf43fcd80a173b5",
+  "generated_rd": "2026-06-14 18:22:55",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
