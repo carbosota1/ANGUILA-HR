@@ -1,10 +1,9 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-06-17 13:20:58
-Target: 2026-06-17 2PM
-Signal key: 2026-06-17|Anguilla|2PM
-Edge: EDGE REAL
-Risk: Riesgo: alta densidad de edges
-Top3: 27, 53, 34
-Top12: 27, 53, 34, 30, 77, 96, 58, 91, 95, 90, 50, 64
-best_score=0.818104 | lift=2.531201 | mi=0.000751 | chi2=12.762549
-rows_used=6100 | support=1676 | active_edges=7
+Generated RD: 2026-06-17 14:20:53
+Target: 2026-06-17 3PM
+Signal key: 2026-06-17|Anguilla|3PM
+Edge: EDGE MODERADO
+Top3: 52, 74, 16
+Top12: 52, 74, 16, 27, 96, 55, 93, 62, 69, 86, 08, 10
+best_score=0.661947 | lift=2.087596 | mi=0.000459 | chi2=7.236658
+rows_used=6101 | support=1686 | active_edges=6
