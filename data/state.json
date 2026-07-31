@@ -1,10 +1,10 @@
 {
-  "last_signal_key": "2026-07-31|Anguilla|8AM",
-  "last_fingerprint": "583d1dd9aac4cc306df9d4cb6313ab4b",
-  "last_target_hora": "2026-07-31|Anguilla|8AM",
-  "last_sent_at_rd": "2026-07-30 22:20:55",
-  "last_run_at_rd": "2026-07-31 07:20:53",
-  "last_target_dt": "2026-07-31 08:00:00-04:00",
+  "last_signal_key": "2026-07-31|Anguilla|9AM",
+  "last_fingerprint": "8a914d9c6944459374a2b3ffd716f71a",
+  "last_target_hora": "2026-07-31|Anguilla|9AM",
+  "last_sent_at_rd": "2026-07-31 08:20:54",
+  "last_run_at_rd": "2026-07-31 08:20:54",
+  "last_target_dt": "2026-07-31 09:00:00-04:00",
   "last_edge_label": "EDGE REAL",
   "last_top3": [
     "52",
