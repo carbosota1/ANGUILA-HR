@@ -1,7 +1,7 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-08-16 21:20:56
-Target: 2026-08-16 10PM
-Signal key: 2026-08-16|Anguilla|10PM
+Generated RD: 2026-08-16 22:20:50
+Target: 2026-08-17 8AM
+Signal key: 2026-08-17|Anguilla|8AM
 Edge: NO JUGAR
 Top3: 27, 69, 31
 Top12: 27, 69, 31, 94, 47, 56, 80, 71, 43, 48, 41, 06
