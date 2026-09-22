@@ -274,7 +274,7 @@
   ],
   "signal_key": "2026-09-22|Anguilla|8AM",
   "fingerprint": "dcefd3990b290143a1ac0b925858431a",
-  "generated_rd": "2026-09-21 22:21:46",
+  "generated_rd": "2026-09-22 07:22:21",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
