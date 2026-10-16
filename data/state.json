@@ -1,10 +1,10 @@
 {
-  "last_signal_key": "2026-10-16|Anguilla|7PM",
-  "last_fingerprint": "f0e5abeafc178bdafe17a6cd5ccd637e",
-  "last_target_hora": "2026-10-16|Anguilla|7PM",
-  "last_sent_at_rd": "2026-10-16 18:22:04",
-  "last_run_at_rd": "2026-10-16 18:22:04",
-  "last_target_dt": "2026-10-16 19:00:00-04:00",
+  "last_signal_key": "2026-10-16|Anguilla|8PM",
+  "last_fingerprint": "4b15d73328a8688e1c0e770bac8ddf00",
+  "last_target_hora": "2026-10-16|Anguilla|8PM",
+  "last_sent_at_rd": "2026-10-16 19:23:55",
+  "last_run_at_rd": "2026-10-16 19:23:55",
+  "last_target_dt": "2026-10-16 20:00:00-04:00",
   "last_edge_label": "NO JUGAR",
   "last_top3": [
     "19",
