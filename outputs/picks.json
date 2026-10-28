@@ -1,7 +1,7 @@
 {
   "target_fecha": "2026-10-27",
-  "target_hora": "3PM",
-  "target_datetime": "2026-10-27 15:00:00",
+  "target_hora": "9PM",
+  "target_datetime": "2026-10-27 21:00:00",
   "top3": [
     "05",
     "21",
@@ -272,9 +272,9 @@
       "support": 2120
     }
   ],
-  "signal_key": "2026-10-27|Anguilla|3PM",
-  "fingerprint": "179b00907d246385e3956dd336977ba8",
-  "generated_rd": "2026-10-27 14:24:14",
+  "signal_key": "2026-10-27|Anguilla|9PM",
+  "fingerprint": "f840b0106a26a5b52f5f2510d7e71c81",
+  "generated_rd": "2026-10-27 20:02:44",
   "workflow": {
     "notify_enabled": true,
     "notify_dedupe": true,
