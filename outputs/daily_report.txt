@@ -1,10 +1,10 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-11-05 16:25:54
-Target: 2026-11-05 5PM
-Signal key: 2026-11-05|Anguilla|5PM
+Generated RD: 2026-11-05 17:24:50
+Target: 2026-11-05 6PM
+Signal key: 2026-11-05|Anguilla|6PM
 Edge: NO JUGAR
-Top3: 83, 40, 59
-Top12: 83, 40, 59, 75, 34, 37, 44, 33, 23, 95, 08, 39
-best_score=0.611728 | lift=1.885341 | mi=0.000285 | chi2=5.807312
-rows_used=8176 | support=2153 | active_edges=7
+Top3: 28, 83, 35
+Top12: 28, 83, 35, 56, 61, 74, 13, 03, 92, 51, 36, 00
+best_score=0.567078 | lift=2.046955 | mi=0.000379 | chi2=7.941703
+rows_used=8177 | support=2095 | active_edges=6
 NO JUGAR ESTE PICK
