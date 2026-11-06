@@ -1,5 +1,5 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-11-06 15:09:18
+Generated RD: 2026-11-06 15:27:59
 Target: 2026-11-06 4PM
 Signal key: 2026-11-06|Anguilla|4PM
 Edge: NO JUGAR
