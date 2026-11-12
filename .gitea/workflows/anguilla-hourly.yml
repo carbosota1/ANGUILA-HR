@@ -32,6 +32,11 @@ on:
         default: "1"
 permissions:
   contents: write
+# Tras un apagón, los runs atrasados se encolan juntos: solo debe correr el último.
+# El grupo incluye el tipo de evento para que los runs manuales no cancelen a los programados.
+concurrency:
+  group: anguila-hourly-${{ github.event_name }}
+  cancel-in-progress: true
 jobs:
   run-engine:
     runs-on: ubuntu-22.04
