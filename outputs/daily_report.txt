@@ -1,10 +1,10 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-11-15 09:21:55
-Target: 2026-11-15 10AM
-Signal key: 2026-11-15|Anguilla|10AM
+Generated RD: 2026-11-15 10:25:09
+Target: 2026-11-15 11AM
+Signal key: 2026-11-15|Anguilla|11AM
 Edge: EDGE MODERADO
 Risk: Riesgo: señal inestable
-Top3: 94, 36, 85
-Top12: 94, 36, 85, 19, 75, 25, 97, 09, 68, 91, 54, 82
-best_score=0.679491 | lift=1.890068 | mi=0.00048 | chi2=6.232654
-rows_used=8319 | support=2166 | active_edges=7
+Top3: 25, 09, 18
+Top12: 25, 09, 18, 97, 75, 74, 77, 50, 72, 06, 83, 36
+best_score=0.6683 | lift=2.279244 | mi=0.000512 | chi2=11.395273
+rows_used=8320 | support=2167 | active_edges=9
