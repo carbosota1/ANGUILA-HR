@@ -3,14 +3,14 @@
   "last_fingerprint": "43a07d93a8724cdcc55626c25f1abaca",
   "last_target_hora": "2026-11-17|Anguilla|7PM",
   "last_sent_at_rd": "2026-11-17 18:22:29",
-  "last_run_at_rd": "2026-11-17 18:22:29",
-  "last_target_dt": "2026-11-17 19:00:00-04:00",
+  "last_run_at_rd": "2026-11-17 19:23:15",
+  "last_target_dt": "2026-11-17 20:00:00-04:00",
   "last_edge_label": "NO JUGAR",
   "last_top3": [
-    "84",
-    "08",
-    "24"
+    "47",
+    "13",
+    "97"
   ],
   "last_status": "OK",
-  "ok_draws": 8357
+  "ok_draws": 8359
 }
