@@ -1,7 +1,7 @@
 ANGUILLA CHI/MI ENGINE
-Generated RD: 2026-11-25 11:43:12
-Target: 2026-11-25 12PM
-Signal key: 2026-11-25|Anguilla|12PM
+Generated RD: 2026-11-25 13:23:13
+Target: 2026-11-25 2PM
+Signal key: 2026-11-25|Anguilla|2PM
 Edge: EDGE REAL
 Top3: 71, 82, 01
 Top12: 71, 82, 01, 66, 77, 54, 25, 96, 45, 65, 93, 48
