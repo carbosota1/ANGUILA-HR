@@ -1,16 +1,16 @@
 {
-  "last_signal_key": "2026-11-28|Anguilla|9AM",
-  "last_fingerprint": "663d9e7f5d263dce17f395e2de8024b4",
-  "last_target_hora": "2026-11-28|Anguilla|9AM",
-  "last_sent_at_rd": "2026-11-28 08:22:04",
-  "last_run_at_rd": "2026-11-28 08:22:04",
-  "last_target_dt": "2026-11-28 09:00:00-04:00",
-  "last_edge_label": "EDGE MODERADO",
+  "last_signal_key": "2026-11-28|Anguilla|10AM",
+  "last_fingerprint": "bc571bed9543d955b79f20e0ba80299a",
+  "last_target_hora": "2026-11-28|Anguilla|10AM",
+  "last_sent_at_rd": "2026-11-28 09:22:16",
+  "last_run_at_rd": "2026-11-28 09:22:16",
+  "last_target_dt": "2026-11-28 10:00:00-04:00",
+  "last_edge_label": "NO JUGAR",
   "last_top3": [
-    "74",
-    "69",
-    "33"
+    "61",
+    "18",
+    "02"
   ],
   "last_status": "OK",
-  "ok_draws": 8513
+  "ok_draws": 8514
 }
